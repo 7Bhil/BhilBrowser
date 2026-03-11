@@ -1,4 +1,6 @@
 const path = require('path');
+
+// Select DOM elements
 const tabBar = document.getElementById('tab-bar');
 const addTabBtn = document.getElementById('add-tab');
 const webviewContainer = document.getElementById('webview-container');
@@ -6,6 +8,7 @@ const urlInput = document.getElementById('url-input');
 const backBtn = document.getElementById('back');
 const forwardBtn = document.getElementById('forward');
 const refreshBtn = document.getElementById('refresh');
+const homeBtn = document.getElementById('home');
 
 class TabManager {
     constructor() {
@@ -13,48 +16,89 @@ class TabManager {
         this.activeTabId = null;
         this.nextTabId = 0;
 
-        addTabBtn.addEventListener('click', () => this.createTab());
+        // Global Event Listeners
+        this.setupGeneralListeners();
         
-        // Initial tab
-        this.createTab(`file://${path.join(__dirname, 'dashboard.html')}`);
+        // Initial Tab
+        this.createTab();
+    }
 
-        // URL navigation
+    setupGeneralListeners() {
+        // Add Tab Button
+        addTabBtn.addEventListener('click', () => {
+            console.log('UI: Add Tab Clicked');
+            this.createTab();
+        });
+
+        // URL Input (Search / Navigate)
         urlInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 let url = urlInput.value.trim();
-                if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                    if (url.includes('.') && !url.includes(' ')) {
-                        url = 'https://' + url;
-                    } else {
-                        url = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+                console.log('UI: Navigate to', url);
+                if (url) {
+                    if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('file://')) {
+                        if (url.includes('.') && !url.includes(' ')) {
+                            url = 'https://' + url;
+                        } else {
+                            url = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+                        }
                     }
+                    this.navigateActiveTab(url);
                 }
-                const activeTab = this.getActiveTab();
-                if (activeTab) activeTab.webview.src = url;
             }
         });
 
-        // Controls
+        // Navigation Buttons
         backBtn.addEventListener('click', () => {
-            const activeTab = this.getActiveTab();
-            if (activeTab && activeTab.webview.canGoBack()) activeTab.webview.goBack();
+            console.log('UI: Back Clicked');
+            const activeWebview = this.getActiveWebview();
+            if (activeWebview) {
+                activeWebview.focus();
+                if (activeWebview.canGoBack()) activeWebview.goBack();
+            }
         });
 
         forwardBtn.addEventListener('click', () => {
-            const activeTab = this.getActiveTab();
-            if (activeTab && activeTab.webview.canGoForward()) activeTab.webview.goForward();
+            console.log('UI: Forward Clicked');
+            const activeWebview = this.getActiveWebview();
+            if (activeWebview) {
+                activeWebview.focus();
+                if (activeWebview.canGoForward()) activeWebview.goForward();
+            }
         });
 
         refreshBtn.addEventListener('click', () => {
-            const activeTab = this.getActiveTab();
-            if (activeTab) activeTab.webview.reload();
+            console.log('UI: Refresh Clicked');
+            const activeWebview = this.getActiveWebview();
+            if (activeWebview) activeWebview.reload();
+        });
+
+        homeBtn.addEventListener('click', () => {
+            console.log('UI: Home Clicked');
+            const homeUrl = `file://${path.join(__dirname, 'dashboard.html')}`;
+            this.navigateActiveTab(homeUrl);
+        });
+
+        // Keyboard Shortcuts (Alt + Arrows)
+        window.addEventListener('keydown', (e) => {
+            if (e.altKey) {
+                const activeWebview = this.getActiveWebview();
+                if (!activeWebview) return;
+                if (e.key === 'ArrowLeft' && activeWebview.canGoBack()) activeWebview.goBack();
+                if (e.key === 'ArrowRight' && activeWebview.canGoForward()) activeWebview.goForward();
+            }
         });
     }
 
-    createTab(url = `file://${path.join(__dirname, 'dashboard.html')}`) {
-        const id = this.nextTabId++;
+    createTab(url = null) {
+        if (!url) {
+            url = `file://${path.join(__dirname, 'dashboard.html')}`;
+        }
         
-        // Create Tab UI
+        const id = this.nextTabId++;
+        console.log(`Tab: Creating tab ${id} with URL ${url}`);
+
+        // 1. Create Tab UI Element
         const tabEl = document.createElement('div');
         tabEl.className = 'group flex items-center h-8 px-3 bg-gray-800 rounded-t-lg border-x border-t border-gray-700 max-w-[200px] min-w-[120px] transition-all cursor-pointer relative shrink-0';
         tabEl.id = `tab-${id}`;
@@ -73,104 +117,137 @@ class TabManager {
             }
         });
 
-        // Create Webview
+        // 2. Create Webview element
         const webview = document.createElement('webview');
         webview.id = `webview-${id}`;
         webview.src = url;
-        webview.autosize = 'on';
-        webview.className = 'absolute inset-0 w-full h-full invisible';
         webview.setAttribute('allowpopups', '');
+        webview.className = 'absolute inset-0 w-full h-full invisible bg-white';
 
-        // Webview Events
+        // 3. Setup Webview Listeners
+        this.setupWebviewListeners(webview, id, tabEl);
+
+        // 4. Inject into DOM
+        webviewContainer.appendChild(webview);
+        tabBar.insertBefore(tabEl, addTabBtn);
+
+        // 5. Register Tab
+        this.tabs.push({ id, tabEl, webview });
+        this.switchTab(id);
+    }
+
+    setupWebviewListeners(webview, id, tabEl) {
+        let isReady = false;
+
+        const updateUI = () => {
+            if (this.activeTabId === id && isReady) {
+                this.syncBrowserUI(webview);
+            }
+        };
+
         webview.addEventListener('did-start-loading', () => {
             if (this.activeTabId === id) refreshBtn.classList.add('animate-spin');
         });
 
         webview.addEventListener('did-stop-loading', () => {
-            let title = webview.getTitle();
-            if (webview.getURL().includes('dashboard.html')) title = 'Home';
-            tabEl.querySelector('span').textContent = title || 'Home';
+            if (this.activeTabId === id) refreshBtn.classList.remove('animate-spin');
+            updateUI();
+        });
+
+        webview.addEventListener('dom-ready', () => {
+            isReady = true;
+            console.log(`Webview ${id} is ready`);
+            updateUI();
+        });
+
+        webview.addEventListener('did-navigate', updateUI);
+        webview.addEventListener('did-navigate-in-page', updateUI);
+        
+        webview.addEventListener('did-start-navigation', (e) => {
             if (this.activeTabId === id) {
-                refreshBtn.classList.remove('animate-spin');
-                urlInput.value = webview.getURL().includes('dashboard.html') ? '' : webview.getURL();
-                this.updateNavButtons();
+                // Instantly update URL bar for better feel
+                urlInput.value = e.url.includes('dashboard.html') ? '' : e.url;
             }
         });
 
-        // Crucial for back/forward buttons state
-        const updateButtons = () => {
-            if (this.activeTabId === id) this.updateNavButtons();
-        };
-
-        webview.addEventListener('did-navigate', updateButtons);
-        webview.addEventListener('did-navigate-in-page', updateButtons);
-        webview.addEventListener('dom-ready', updateButtons);
-
         webview.addEventListener('page-title-updated', (e) => {
-            tabEl.querySelector('span').textContent = e.title;
+            const title = e.title || (webview.getURL().includes('dashboard.html') ? 'Home' : 'Loading...');
+            tabEl.querySelector('span').textContent = title;
         });
 
         // Two-finger swipe gesture detection
         let scrollDeltaX = 0;
         let lastScrollTime = Date.now();
+        let isThresholdMet = false;
 
         webview.addEventListener('wheel', (e) => {
             const now = Date.now();
-            if (now - lastScrollTime > 500) scrollDeltaX = 0; // Reset if pause
+            // Reset if pause between scrolls or if vertical scroll becomes dominant
+            if (now - lastScrollTime > 200 || Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                scrollDeltaX = 0;
+                isThresholdMet = false;
+                this.resetVisualFeedback();
+            }
             lastScrollTime = now;
 
-            // Only handle horizontal scrolls (two-finger swipe)
-            if (Math.abs(e.deltaX) > Math.abs(e.deltaY) * 2) {
+            // Only handle horizontal dominant scrolls
+            if (Math.abs(e.deltaX) > Math.abs(e.deltaY) * 1.2) {
                 scrollDeltaX += e.deltaX;
                 
-                // Visual feedback (optional: change button opacity or scale)
-                if (Math.abs(scrollDeltaX) > 50) {
-                    if (scrollDeltaX < 0) backBtn.classList.add('scale-110', 'text-blue-400');
-                    else forwardBtn.classList.add('scale-110', 'text-blue-400');
+                // Visual feedback hints (more sensitive)
+                if (Math.abs(scrollDeltaX) > 30) {
+                    if (scrollDeltaX < 0) {
+                        backBtn.style.transform = `scale(${1 + Math.min(0.2, Math.abs(scrollDeltaX)/400)})`;
+                        backBtn.style.color = '#60a5fa'; // blue-400
+                    } else {
+                        forwardBtn.style.transform = `scale(${1 + Math.min(0.2, Math.abs(scrollDeltaX)/400)})`;
+                        forwardBtn.style.color = '#60a5fa'; // blue-400
+                    }
                 }
 
-                // Threshold for swipe
-                if (scrollDeltaX > 150) {
-                    if (webview.canGoForward()) webview.goForward();
-                    this.resetGestures(scrollDeltaX);
-                    scrollDeltaX = 0;
-                } else if (scrollDeltaX < -150) {
-                    if (webview.canGoBack()) webview.goBack();
-                    this.resetGestures(scrollDeltaX);
-                    scrollDeltaX = 0;
+                // Threshold for swipe accomplishment (lowered for Linux trackpads)
+                const threshold = 120; 
+                if (!isThresholdMet) {
+                    if (scrollDeltaX > threshold) {
+                        if (webview.canGoForward()) {
+                            console.log('Gesture: Forward triggered');
+                            webview.goForward();
+                            isThresholdMet = true;
+                        }
+                        scrollDeltaX = 0;
+                        this.resetVisualFeedback();
+                    } else if (scrollDeltaX < -threshold) {
+                        if (webview.canGoBack()) {
+                            console.log('Gesture: Back triggered');
+                            webview.goBack();
+                            isThresholdMet = true;
+                        }
+                        scrollDeltaX = 0;
+                        this.resetVisualFeedback();
+                    }
                 }
-            } else {
-                scrollDeltaX = 0;
-                this.resetGestures();
             }
-        });
-
-        webviewContainer.appendChild(webview);
-        tabBar.insertBefore(tabEl, addTabBtn);
-
-        this.tabs.push({ id, tabEl, webview });
-        this.switchTab(id);
+        }, { passive: true });
     }
 
-    resetGestures() {
-        backBtn.classList.remove('scale-110', 'text-blue-400');
-        forwardBtn.classList.remove('scale-110', 'text-blue-400');
+    resetVisualFeedback() {
+        backBtn.style.transform = 'scale(1)';
+        forwardBtn.style.transform = 'scale(1)';
+        backBtn.style.color = '';
+        forwardBtn.style.color = '';
     }
 
     switchTab(id) {
+        console.log(`Tab: Switching to tab ${id}`);
         this.tabs.forEach(tab => {
             if (tab.id === id) {
-                tab.tabEl.classList.remove('bg-gray-800', 'text-gray-500');
                 tab.tabEl.classList.add('bg-gray-700', 'text-white', 'border-gray-600');
+                tab.tabEl.classList.remove('bg-gray-900', 'text-gray-400');
                 tab.webview.classList.remove('invisible');
                 this.activeTabId = id;
-                
-                const url = tab.webview.getURL();
-                urlInput.value = url.includes('dashboard.html') ? '' : url;
-                
-                this.updateNavButtons();
+                this.syncBrowserUI(tab.webview);
             } else {
-                tab.tabEl.classList.add('bg-gray-800', 'text-gray-500');
+                tab.tabEl.classList.add('bg-gray-900', 'text-gray-400');
                 tab.tabEl.classList.remove('bg-gray-700', 'text-white', 'border-gray-600');
                 tab.webview.classList.add('invisible');
             }
@@ -194,17 +271,33 @@ class TabManager {
         }
     }
 
-    getActiveTab() {
-        return this.tabs.find(t => t.id === this.activeTabId);
+    syncBrowserUI(webview) {
+        // Update URL Input
+        const url = webview.getURL();
+        urlInput.value = url.includes('dashboard.html') ? '' : url;
+
+        // Update Nav Buttons State
+        backBtn.disabled = !webview.canGoBack();
+        forwardBtn.disabled = !webview.canGoForward();
+        
+        backBtn.style.opacity = webview.canGoBack() ? '1' : '0.3';
+        forwardBtn.style.opacity = webview.canGoForward() ? '1' : '0.3';
     }
 
-    updateNavButtons() {
-        const activeTab = this.getActiveTab();
+    navigateActiveTab(url) {
+        const activeTab = this.tabs.find(t => t.id === this.activeTabId);
         if (activeTab) {
-            backBtn.disabled = !activeTab.webview.canGoBack();
-            forwardBtn.disabled = !activeTab.webview.canGoForward();
+            activeTab.webview.src = url;
         }
+    }
+
+    getActiveWebview() {
+        const activeTab = this.tabs.find(t => t.id === this.activeTabId);
+        return activeTab ? activeTab.webview : null;
     }
 }
 
-new TabManager();
+// Initialize
+window.addEventListener('DOMContentLoaded', () => {
+    new TabManager();
+});
