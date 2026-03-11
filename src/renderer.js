@@ -1,11 +1,29 @@
 const { ipcRenderer } = require('electron');
+const { getCurrentWindow } = require('@electron/remote');
 const path = require('path');
 const Store = require('./store');
 
 // Detect if we are in a private window
 const isPrivate = new URLSearchParams(window.location.search).get('private') === 'true';
 
+// Apply Theme
+let currentTheme = Store.getTheme();
+if (currentTheme === 'dark') {
+    document.documentElement.classList.add('dark');
+} else {
+    document.documentElement.classList.remove('dark');
+}
+
+// Ad-blocker state
+let adblockEnabled = true;
+
 // Select DOM elements
+const adblockBtn = document.getElementById('adblock-btn');
+const adblockIcon = document.getElementById('adblock-icon');
+const adblockPopup = document.getElementById('adblock-popup');
+const adblockCount = document.getElementById('adblock-count');
+const adblockStatusBadge = document.getElementById('adblock-status-badge');
+const adblockMainToggle = document.getElementById('adblock-main-toggle');
 const tabBar = document.getElementById('tab-bar');
 const addTabBtn = document.getElementById('add-tab');
 const webviewContainer = document.getElementById('webview-container');
@@ -159,7 +177,6 @@ class TabManager {
         });
 
         // Window controls
-        const { getCurrentWindow } = require('@electron/remote');
         const win = getCurrentWindow();
 
         document.getElementById('win-close').addEventListener('click', () => win.close());
@@ -170,21 +187,46 @@ class TabManager {
         });
 
         // Ad-blocker toggle
-        const { ipcRenderer } = require('electron');
-        const adblockBtn = document.getElementById('adblock-btn');
-        const adblockIcon = document.getElementById('adblock-icon');
-        let adblockEnabled = true;
-
+        
         const updateAdblockUI = (enabled) => {
+            adblockEnabled = enabled;
             adblockIcon.style.color = enabled ? '#34d399' : '#6b7280';
-            adblockBtn.title = enabled ? 'Bloqueur actif (cliquer pour désactiver)' : 'Bloqueur désactivé (cliquer pour activer)';
+            adblockStatusBadge.textContent = enabled ? 'Actif' : 'Désactivé';
+            adblockStatusBadge.className = `px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${enabled ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-gray-500/10 text-gray-500'}`;
+            adblockMainToggle.textContent = enabled ? 'Désactiver le bloqueur' : 'Activer le bloqueur';
+            adblockMainToggle.className = `w-full py-2 ${enabled ? 'bg-red-500/10 hover:bg-red-500/20 text-red-500' : 'bg-blue-600 hover:bg-blue-700 text-white'} rounded-xl text-sm font-medium transition-colors`;
         };
         updateAdblockUI(true);
 
-        adblockBtn.addEventListener('click', () => {
+        adblockBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            adblockPopup.classList.toggle('opacity-0');
+            adblockPopup.classList.toggle('pointer-events-none');
+            adblockPopup.classList.toggle('scale-95');
+        });
+
+        adblockMainToggle.addEventListener('click', () => {
             adblockEnabled = !adblockEnabled;
             ipcRenderer.send('toggle-adblock', adblockEnabled);
             updateAdblockUI(adblockEnabled);
+        });
+
+        // Close popup when clicking outside
+        window.addEventListener('click', (e) => {
+            if (!adblockBtn.contains(e.target) && !adblockPopup.contains(e.target)) {
+                adblockPopup.classList.add('opacity-0', 'pointer-events-none', 'scale-95');
+            }
+        });
+
+        // Ad-blocker stats listener
+        ipcRenderer.on('ad-blocked', (event, webContentsId) => {
+            const tab = this.tabs.find(t => t.webview.getWebContentsId() === webContentsId);
+            if (tab) {
+                tab.adsBlocked++;
+                if (this.activeTabId === tab.id) {
+                    adblockCount.textContent = tab.adsBlocked;
+                }
+            }
         });
     }
 
@@ -341,11 +383,11 @@ class TabManager {
         const id = this.nextTabId++;
         
         const tabEl = document.createElement('div');
-        tabEl.className = 'group flex items-center h-8 px-3 bg-gray-800 rounded-t-lg border-x border-t border-gray-700 max-w-[200px] min-w-[120px] transition-all cursor-pointer relative shrink-0';
+        tabEl.className = 'group flex items-center h-8 px-3 bg-black/5 dark:bg-gray-800 rounded-t-lg border-x border-t border-black/5 dark:border-gray-700 text-gray-600 dark:text-gray-400 max-w-[200px] min-w-[120px] transition-all cursor-pointer relative shrink-0';
         tabEl.id = `tab-${id}`;
         tabEl.innerHTML = `
             <span class="text-xs truncate mr-2 pointer-events-none flex-1">Home</span>
-            <button class="close-tab p-0.5 hover:bg-gray-700 rounded transition-colors opacity-0 group-hover:opacity-100">
+            <button class="close-tab p-0.5 hover:bg-black/10 dark:hover:bg-gray-700 rounded transition-colors opacity-0 group-hover:opacity-100">
                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
             </button>
         `;
@@ -369,7 +411,7 @@ class TabManager {
         this.setupWebviewListeners(webview, id, tabEl);
         webviewContainer.appendChild(webview);
         tabBar.insertBefore(tabEl, addTabBtn);
-        this.tabs.push({ id, tabEl, webview, isReady: false });
+        this.tabs.push({ id, tabEl, webview, isReady: false, adsBlocked: 0 });
         this.switchTab(id);
     }
 
@@ -411,15 +453,23 @@ class TabManager {
                 }
                 this.updateBookmarkUI(url);
 
+                // Reset ad counter on navigation (optional, but standard for "on this page")
+                const tab = this.tabs.find(t => t.id === id);
+                if (tab) {
+                    tab.adsBlocked = 0;
+                    if (this.activeTabId === id) adblockCount.textContent = '0';
+                }
+
                 // Inject data into Dashboard if loaded
                 if (url.includes('dashboard.html')) {
                     const history = JSON.stringify(Store.getHistory());
                     const bookmarks = JSON.stringify(Store.getBookmarks());
+                    const theme = JSON.stringify(Store.getTheme() || 'dark');
                     wv.executeJavaScript(`
                         if (typeof window.injectDashboardData === 'function') {
-                            window.injectDashboardData(${history}, ${bookmarks});
+                            window.injectDashboardData(${history}, ${bookmarks}, ${theme});
                         }
-                    `).catch(() => {});
+                    `).catch((e) => console.error('Dashboard Injection Error:', e));
                 }
             }
             updateUI();
@@ -505,17 +555,18 @@ class TabManager {
         this.isWaitingForLoad = false;
         this.tabs.forEach(tab => {
             if (tab.id === id) {
-                tab.tabEl.classList.add('bg-gray-700', 'text-white', 'border-gray-600');
-                tab.tabEl.classList.remove('bg-gray-900', 'text-gray-400');
+                tab.tabEl.classList.add('bg-white', 'dark:bg-gray-700', 'text-blue-600', 'dark:text-white', 'border-black/10', 'dark:border-gray-600', 'shadow-sm', 'dark:shadow-none');
+                tab.tabEl.classList.remove('bg-black/5', 'dark:bg-gray-800', 'text-gray-600', 'dark:text-gray-400', 'border-black/5', 'dark:border-gray-700');
                 tab.webview.classList.remove('invisible');
                 this.activeTabId = id;
                 if (tab.isReady) {
                     this.syncBrowserUI(tab.webview);
                     this.updateBookmarkUI(tab.webview.getURL());
+                    adblockCount.textContent = tab.adsBlocked || 0;
                 }
             } else {
-                tab.tabEl.classList.add('bg-gray-900', 'text-gray-400');
-                tab.tabEl.classList.remove('bg-gray-700', 'text-white', 'border-gray-600');
+                tab.tabEl.classList.add('bg-black/5', 'dark:bg-gray-800', 'text-gray-600', 'dark:text-gray-400', 'border-black/5', 'dark:border-gray-700');
+                tab.tabEl.classList.remove('bg-white', 'dark:bg-gray-700', 'text-blue-600', 'dark:text-white', 'border-black/10', 'dark:border-gray-600', 'shadow-sm', 'dark:shadow-none');
                 tab.webview.classList.add('invisible');
             }
         });
@@ -596,15 +647,15 @@ class TabManager {
                 ? `<img src="https://www.google.com/s2/favicons?sz=64&domain=${s.host}" class="w-4 h-4" onerror="this.src='https://www.google.com/s2/favicons?sz=64&domain=google.com'">`
                 : `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>`;
             const badge = s.type === 'history'
-                ? `<span class="text-[9px] font-bold uppercase text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-full shrink-0">Visité</span>`
-                : `<span class="text-[9px] font-bold uppercase text-gray-500 bg-white/5 px-1.5 py-0.5 rounded-full shrink-0">Recherche</span>`;
-            const activeClass = i === this.activeSuggestionIndex ? 'bg-white/10' : '';
+                ? `<span class="text-[9px] font-bold uppercase text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-full shrink-0">Visité</span>`
+                : `<span class="text-[9px] font-bold uppercase text-gray-500 bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded-full shrink-0">Recherche</span>`;
+            const activeClass = i === this.activeSuggestionIndex ? 'bg-black/5 dark:bg-white/10' : '';
             return `
-                <div class="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors cursor-pointer ${activeClass} suggestion-item" 
+                <div class="flex items-center gap-3 px-4 py-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer ${activeClass} suggestion-item" 
                      data-idx="${i}" 
                      onclick="window.activeTabManager.selectSuggestion(${i})">
-                    <div class="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center shrink-0 text-gray-400">${icon}</div>
-                    <span class="text-sm text-gray-200 truncate flex-1">${s.label}</span>
+                    <div class="w-7 h-7 rounded-lg bg-gray-200 dark:bg-gray-800 flex items-center justify-center shrink-0 text-gray-500 dark:text-gray-400">${icon}</div>
+                    <span class="text-sm text-gray-800 dark:text-gray-200 truncate flex-1">${s.label}</span>
                     ${badge}
                 </div>
             `;
@@ -652,13 +703,15 @@ class TabManager {
     setSidebarMode(mode) {
         this.sidebarMode = mode;
         if (mode === 'history') {
-            sbShowHistory.classList.add('text-blue-400', 'bg-blue-500/10');
-            sbShowBookmarks.classList.remove('text-blue-400', 'bg-blue-500/10');
-            sbShowBookmarks.classList.add('text-gray-400');
+            sbShowHistory.classList.add('text-blue-600', 'dark:text-blue-400', 'bg-white', 'dark:bg-blue-500/10', 'shadow-sm', 'dark:shadow-none');
+            sbShowHistory.classList.remove('text-gray-500', 'dark:text-gray-400', 'hover:text-gray-900', 'dark:hover:text-white');
+            sbShowBookmarks.classList.remove('text-blue-600', 'dark:text-blue-400', 'bg-white', 'dark:bg-blue-500/10', 'shadow-sm', 'dark:shadow-none');
+            sbShowBookmarks.classList.add('text-gray-500', 'dark:text-gray-400', 'hover:text-gray-900', 'dark:hover:text-white');
         } else {
-            sbShowBookmarks.classList.add('text-blue-400', 'bg-blue-500/10');
-            sbShowHistory.classList.remove('text-blue-400', 'bg-blue-500/10');
-            sbShowHistory.classList.add('text-gray-400');
+            sbShowBookmarks.classList.add('text-blue-600', 'dark:text-blue-400', 'bg-white', 'dark:bg-blue-500/10', 'shadow-sm', 'dark:shadow-none');
+            sbShowBookmarks.classList.remove('text-gray-500', 'dark:text-gray-400', 'hover:text-gray-900', 'dark:hover:text-white');
+            sbShowHistory.classList.remove('text-blue-600', 'dark:text-blue-400', 'bg-white', 'dark:bg-blue-500/10', 'shadow-sm', 'dark:shadow-none');
+            sbShowHistory.classList.add('text-gray-500', 'dark:text-gray-400', 'hover:text-gray-900', 'dark:hover:text-white');
         }
         this.renderSidebarContent();
     }
@@ -672,21 +725,21 @@ class TabManager {
 
         if (filtered.length === 0) {
             sidebarContent.innerHTML = `
-                <div class="text-center py-12 text-gray-600 border border-white/5 border-dashed rounded-2xl">
-                    Aucun résultat
+                <div class="text-center py-12 text-gray-500 border border-black/10 dark:border-white/5 border-dashed rounded-2xl p-4">
+                    <p class="text-sm font-medium">Aucun résultat</p>
                 </div>
             `;
             return;
         }
 
         sidebarContent.innerHTML = filtered.map(item => `
-            <div class="group flex items-center justify-between p-3 hover:bg-white/5 rounded-xl transition-all cursor-pointer border border-transparent hover:border-white/5" onclick="window.activeTabManager.navigateActiveTab('${item.url}'); window.activeTabManager.toggleSidebar()">
+            <div class="group flex items-center justify-between p-3 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-all cursor-pointer border border-transparent hover:border-black/5 dark:hover:border-white/5 shadow-sm dark:shadow-none" onclick="window.activeTabManager.navigateActiveTab('${item.url}'); window.activeTabManager.toggleSidebar()">
                 <div class="flex items-center gap-3 overflow-hidden">
-                    <div class="w-8 h-8 rounded-lg bg-gray-950/50 flex items-center justify-center shrink-0">
+                    <div class="w-8 h-8 rounded-lg bg-black/5 dark:bg-gray-950/50 flex items-center justify-center shrink-0">
                         <img src="https://www.google.com/s2/favicons?sz=64&domain=${new URL(item.url).hostname}" class="w-4 h-4" onerror="this.src='https://www.google.com/s2/favicons?sz=64&domain=google.com'">
                     </div>
                     <div class="overflow-hidden">
-                        <p class="text-[13px] font-medium text-gray-200 truncate group-hover:text-blue-400 transition-colors">${item.title || item.url}</p>
+                        <p class="text-[13px] font-medium text-gray-800 dark:text-gray-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">${item.title || item.url}</p>
                         <p class="text-[10px] text-gray-500 truncate">${new URL(item.url).hostname}</p>
                     </div>
                 </div>

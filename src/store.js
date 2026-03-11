@@ -20,6 +20,7 @@ try {
 
 const bookmarksFile = path.join(userDataPath, 'bookmarks.json');
 const historyFile = path.join(userDataPath, 'history.json');
+const settingsFile = path.join(userDataPath, 'settings.json');
 
 class Store {
     static getBookmarks() {
@@ -89,6 +90,29 @@ class Store {
 
     static clearHistory() {
         fs.writeFileSync(historyFile, JSON.stringify([], null, 2));
+    }
+
+    static getTheme() {
+        try {
+            if (!fs.existsSync(settingsFile)) return 'dark';
+            const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
+            return settings.theme || 'dark';
+        } catch (e) {
+            return 'dark';
+        }
+    }
+
+    static setTheme(theme) {
+        try {
+            let settings = {};
+            if (fs.existsSync(settingsFile)) {
+                settings = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
+            }
+            settings.theme = theme;
+            fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+        } catch (e) {
+            console.error('Failed to save theme:', e);
+        }
     }
 }
 

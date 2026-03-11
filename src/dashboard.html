@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BhilBrowser - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
     <style>
         body {
@@ -15,11 +16,22 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background: url('assets/bg.png') no-repeat center center fixed;
-            background-size: cover;
-            color: white;
             font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
             overflow: hidden;
+            position: relative;
+        }
+        .bg-layer {
+            position: absolute;
+            inset: 0;
+            background: url('assets/bg.png') no-repeat center center fixed;
+            background-size: cover;
+            z-index: -2;
+        }
+        .bg-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            transition: background-color 0.3s;
         }
         .glass {
             background: rgba(255, 255, 255, 0.05);
@@ -48,15 +60,13 @@
             transition: all 0.3s ease;
         }
         .search-container:focus-within {
-            background: rgba(255, 255, 255, 0.1);
             transform: scale(1.02);
-            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1);
         }
         input {
             background: transparent;
             border: none;
             outline: none;
-            color: white;
             width: 100%;
             font-size: 1.1rem;
         }
@@ -93,32 +103,35 @@
         }
     </style>
 </head>
-<body>
-    <div class="clock" id="clock">00:00</div>
-    <div class="greeting" id="greeting">Bonjour, Bhil</div>
+<body class="text-gray-900 dark:text-white transition-colors duration-300">
+    <div class="bg-layer"></div>
+    <div class="bg-overlay bg-white/70 dark:bg-black/20"></div>
 
-    <div class="search-container glass flex items-center gap-3">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <input type="text" id="search-input" placeholder="Rechercher sur le web..." autofocus>
+    <div class="clock text-gray-800 dark:text-white" id="clock">00:00</div>
+    <div class="greeting text-gray-600 dark:text-gray-300" id="greeting">Bonjour, Bhil</div>
+
+    <div class="search-container glass flex items-center gap-3 bg-white/50 dark:bg-white/5 border-black/10 dark:border-white/10 text-gray-800 dark:text-gray-200 focus-within:bg-white dark:focus-within:bg-white/10">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-500 dark:text-gray-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="search-input" placeholder="Rechercher sur le web..." class="text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" autofocus>
     </div>
 
     <!-- Main Content -->
-        <main class="max-w-6xl mx-auto px-6 py-12">
+        <main class="max-w-6xl mx-auto px-6 py-12 w-full">
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
                 <!-- History Section (Left/Center) -->
                 <div class="lg:col-span-2 space-y-6">
                     <div class="flex items-center justify-between">
-                        <h3 class="text-lg font-semibold text-white flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <h3 class="text-lg font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600 dark:text-blue-400"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                             Historique Récent
                         </h3>
-                        <button onclick="clearHistory()" class="text-xs text-gray-500 hover:text-red-400 transition-colors">Effacer tout</button>
+                        <button onclick="clearHistory()" class="text-xs text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors">Effacer tout</button>
                     </div>
                     
                     <div id="history-list" class="space-y-2">
                         <!-- History items will be injected here -->
-                        <div class="text-center py-12 text-gray-600 bg-gray-900/30 rounded-2xl border border-white/5 border-dashed">
+                        <div class="text-center py-12 text-gray-500 dark:text-gray-600 bg-black/5 dark:bg-gray-900/30 rounded-2xl border border-black/10 dark:border-white/5 border-dashed">
                             Aucun historique pour le moment
                         </div>
                     </div>
@@ -127,16 +140,16 @@
                 <!-- Bookmarks Section (Right Sidebar) -->
                 <div class="space-y-6">
                     <div class="flex items-center justify-between">
-                        <h3 class="text-lg font-semibold text-white flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-400"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <h3 class="text-lg font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-500 dark:text-yellow-400"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                             Favoris
                         </h3>
-                        <a href="favorites.html" class="text-[10px] text-blue-400 hover:text-blue-300 font-bold uppercase tracking-widest transition-colors">Tout voir</a>
+                        <a href="favorites.html" class="text-[10px] text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 font-bold uppercase tracking-widest transition-colors">Tout voir</a>
                     </div>
                     
                     <div id="bookmarks-list" class="grid grid-cols-1 gap-3">
                         <!-- Bookmark items will be injected here -->
-                        <div class="text-center py-8 text-gray-600 bg-gray-900/30 rounded-2xl border border-white/5 border-dashed">
+                        <div class="text-center py-8 text-gray-500 dark:text-gray-600 bg-black/5 dark:bg-gray-900/30 rounded-2xl border border-black/10 dark:border-white/5 border-dashed">
                             Aucun favori
                         </div>
                     </div>
@@ -149,46 +162,61 @@
         function renderHistory(history) {
             const list = document.getElementById('history-list');
             if (!history || history.length === 0) {
-                list.innerHTML = '<div class="text-center py-12 text-gray-600 bg-gray-900/30 rounded-2xl border border-white/5 border-dashed">Aucun historique pour le moment</div>';
+                list.innerHTML = '<div class="text-center py-12 text-gray-500 dark:text-gray-600 bg-black/5 dark:bg-gray-900/30 rounded-2xl border border-black/10 dark:border-white/5 border-dashed">Aucun historique pour le moment</div>';
                 return;
             }
-            list.innerHTML = history.slice(0, 15).map(item => `
-                <a href="${item.url}" class="group flex items-center justify-between p-4 bg-gray-900/40 hover:bg-gray-800/60 rounded-xl border border-white/5 transition-all hover:scale-[1.01] active:scale-[0.99]">
-                    <div class="flex items-center gap-4 overflow-hidden">
-                        <div class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-                            <img src="https://www.google.com/s2/favicons?sz=64&domain=${new URL(item.url).hostname}" class="w-4 h-4" onerror="this.src='https://www.google.com/s2/favicons?sz=64&domain=google.com'">
-                        </div>
-                        <div class="overflow-hidden">
-                            <p class="text-sm font-medium text-gray-200 truncate group-hover:text-blue-400 transition-colors">${item.title || item.url}</p>
-                            <p class="text-xs text-gray-500 truncate">${new URL(item.url).hostname}</p>
-                        </div>
-                    </div>
-                    <span class="text-[10px] text-gray-600 font-mono">${new Date(item.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                </a>
-            `).join('');
+            list.innerHTML = history.slice(0, 15).map(item => {
+                try {
+                    const hostname = new URL(item.url).hostname;
+                    return `
+                        <a href="${item.url}" class="group flex items-center justify-between p-4 bg-white/40 dark:bg-gray-900/40 hover:bg-white/80 dark:hover:bg-gray-800/60 rounded-xl border border-black/5 dark:border-white/5 transition-all hover:scale-[1.01] active:scale-[0.99] shadow-sm dark:shadow-none">
+                            <div class="flex items-center gap-4 overflow-hidden">
+                                <div class="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
+                                    <img src="https://www.google.com/s2/favicons?sz=64&domain=${hostname}" class="w-4 h-4" onerror="this.src='https://www.google.com/s2/favicons?sz=64&domain=google.com'">
+                                </div>
+                                <div class="overflow-hidden">
+                                    <p class="text-sm font-medium text-gray-800 dark:text-gray-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">${item.title || item.url}</p>
+                                    <p class="text-xs text-gray-500 dark:text-gray-500 truncate">${hostname}</p>
+                                </div>
+                            </div>
+                            <span class="text-[10px] text-gray-400 dark:text-gray-600 font-mono">${new Date(item.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        </a>
+                    `;
+                } catch(e) { return ''; }
+            }).join('');
         }
 
         function renderBookmarks(bookmarks) {
             const list = document.getElementById('bookmarks-list');
             if (!bookmarks || bookmarks.length === 0) {
-                list.innerHTML = '<div class="text-center py-8 text-gray-600 bg-gray-900/30 rounded-2xl border border-white/5 border-dashed">Aucun favori</div>';
+                list.innerHTML = '<div class="text-center py-8 text-gray-500 dark:text-gray-600 bg-black/5 dark:bg-gray-900/30 rounded-2xl border border-black/10 dark:border-white/5 border-dashed">Aucun favori</div>';
                 return;
             }
-            list.innerHTML = bookmarks.map(item => `
-                <a href="${item.url}" class="group flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition-all">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500/20 to-orange-500/20 flex items-center justify-center shrink-0">
-                        <img src="https://www.google.com/s2/favicons?sz=64&domain=${new URL(item.url).hostname}" class="w-5 h-5">
-                    </div>
-                    <div class="overflow-hidden">
-                        <p class="text-sm font-semibold text-gray-200 truncate group-hover:text-yellow-400 transition-colors">${item.title || item.url}</p>
-                        <p class="text-xs text-gray-500 truncate">${new URL(item.url).hostname}</p>
-                    </div>
-                </a>
-            `).join('');
+            list.innerHTML = bookmarks.map(item => {
+                try {
+                    const hostname = new URL(item.url).hostname;
+                    return `
+                        <a href="${item.url}" class="group flex items-center gap-4 p-4 bg-white/40 dark:bg-white/5 hover:bg-white/80 dark:hover:bg-white/10 rounded-xl border border-black/5 dark:border-white/5 transition-all shadow-sm dark:shadow-none">
+                            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-100 to-orange-100 dark:from-yellow-500/20 dark:to-orange-500/20 flex items-center justify-center shrink-0">
+                                <img src="https://www.google.com/s2/favicons?sz=64&domain=${hostname}" class="w-5 h-5">
+                            </div>
+                            <div class="overflow-hidden">
+                                <p class="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate group-hover:text-yellow-600 dark:group-hover:text-yellow-400 transition-colors">${item.title || item.url}</p>
+                                <p class="text-xs text-gray-500 truncate">${hostname}</p>
+                            </div>
+                        </a>
+                    `;
+                } catch(e) { return ''; }
+            }).join('');
         }
 
         // Called by renderer.js after page loads
-        window.injectDashboardData = function(history, bookmarks) {
+        window.injectDashboardData = function(history, bookmarks, theme = 'dark') {
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
             renderHistory(history);
             renderBookmarks(bookmarks);
         };

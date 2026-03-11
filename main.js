@@ -55,6 +55,12 @@ app.whenReady().then(() => {
   // Set up ad-blocker on the default session
   session.defaultSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
     if (isAdRequest(details.url)) {
+      try {
+        const wc = require('electron').webContents.fromId(details.webContentsId);
+        if (wc && wc.hostWebContents) {
+          wc.hostWebContents.send('ad-blocked', details.webContentsId);
+        }
+      } catch (e) {}
       callback({ cancel: true });
     } else {
       callback({ cancel: false });
@@ -65,6 +71,12 @@ app.whenReady().then(() => {
   const privateSession = session.fromPartition('in-memory');
   privateSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
     if (isAdRequest(details.url)) {
+      try {
+        const wc = require('electron').webContents.fromId(details.webContentsId);
+        if (wc && wc.hostWebContents) {
+          wc.hostWebContents.send('ad-blocked', details.webContentsId);
+        }
+      } catch (e) {}
       callback({ cancel: true });
     } else {
       callback({ cancel: false });

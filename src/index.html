@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BhilBrowser</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
     <style>
         body { margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background-color: #111827; }
@@ -28,69 +29,88 @@
         body.private-mode .private-badge { display: flex; }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 font-sans">
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans transition-colors duration-300">
     
     <!-- Tab Bar -->
-    <div id="tab-bar" class="h-8 bg-black/20 flex items-center px-2 gap-1 overflow-x-auto border-b border-white/5 relative z-50">
+    <div id="tab-bar" class="h-8 bg-black/5 dark:bg-black/20 flex items-center px-2 gap-1 overflow-x-auto border-b border-black/10 dark:border-white/5 relative z-50 transition-colors duration-300">
         <!-- Tabs will be injected here -->
-        <button id="add-tab" class="p-1 hover:bg-white/10 rounded-md transition-colors text-gray-500 hover:text-white shrink-0 ml-1" title="Nouvel onglet">
+        <button id="add-tab" class="p-1 hover:bg-white dark:hover:bg-white/10 rounded-md transition-colors text-gray-500 shrink-0 ml-1 shadow-sm dark:shadow-none" title="Nouvel onglet">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-7-7v14"/></svg>
         </button>
     </div>
 
     <!-- Navigation Bar -->
-    <header class="nav-bar h-16 flex items-center px-4 gap-4 z-30 relative">
+    <header class="nav-bar h-16 flex items-center px-4 gap-4 z-30 relative transition-colors duration-300">
         <div class="flex items-center gap-2">
-            <button id="back" class="p-2 hover:bg-white/10 rounded-lg transition-all text-gray-400 hover:text-white disabled:opacity-20" title="Précédent">
+            <button id="back" class="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-20" title="Précédent">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
             </button>
-            <button id="forward" class="p-2 hover:bg-white/10 rounded-lg transition-all text-gray-400 hover:text-white disabled:opacity-20" title="Suivant">
+            <button id="forward" class="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-20" title="Suivant">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
             </button>
-            <button id="refresh" class="p-2 hover:bg-white/10 rounded-lg transition-all text-gray-400 hover:text-white" title="Recharger">
+            <button id="refresh" class="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white" title="Recharger">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
             </button>
-            <button id="home" class="p-2 hover:bg-white/10 rounded-lg transition-all text-gray-400 hover:text-white" title="Accueil">
+            <button id="home" class="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white" title="Accueil">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
             </button>
-            <button id="private-btn" class="p-2 hover:bg-white/10 rounded-lg transition-all text-gray-400 hover:text-white" title="Navigation Privée">
+            <button id="private-btn" class="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white" title="Navigation Privée">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v2"/><path d="M4 14v4a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2z"/><path d="M20 14v4a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2z"/><path d="M4 14l2-6a2 2 0 0 1 2-1h0a2 2 0 0 1 2 1l2 6"/><path d="M12 14l2-6a2 2 0 0 1 2-1h0a2 2 0 0 1 2 1l2 6"/></svg>
             </button>
-            <button id="history-btn" class="p-2 hover:bg-white/10 rounded-lg transition-all text-gray-400 hover:text-white" title="Historique">
+            <button id="history-btn" class="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white" title="Historique">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </button>
         </div>
 
-        <div class="private-badge items-center gap-1 bg-white/10 text-gray-300 px-2 py-1.5 rounded-md border border-white/20 text-xs font-bold tracking-widest uppercase pointer-events-none">
+        <div class="private-badge items-center gap-1 bg-black/5 dark:bg-white/10 text-gray-600 dark:text-gray-300 px-2 py-1.5 rounded-md border border-black/10 dark:border-white/20 text-xs font-bold tracking-widest uppercase pointer-events-none">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
             Privé
         </div>
 
-        <div class="flex-1 max-w-2xl mx-auto flex items-center space-x-2 bg-white/5 rounded-full px-4 py-1.5 border border-white/5 focus-within:border-blue-500/30 focus-within:bg-white/10 transition-all relative group shadow-inner">
-            <svg class="text-gray-500 group-focus-within:text-blue-400 transition-colors shrink-0" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input id="url-input" type="text" class="bg-transparent border-none outline-none text-sm text-gray-200 w-full placeholder-gray-500 font-medium" placeholder="Rechercher ou entrer une URL..." autocomplete="off">
+        <div class="flex-1 max-w-2xl mx-auto flex items-center space-x-2 bg-black/5 dark:bg-white/5 rounded-full px-4 py-1.5 border border-black/5 dark:border-white/5 focus-within:border-blue-500/30 focus-within:bg-white dark:focus-within:bg-white/10 transition-all relative group shadow-inner">
+            <svg class="text-gray-400 dark:text-gray-500 group-focus-within:text-blue-500 dark:group-focus-within:text-blue-400 transition-colors shrink-0" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="url-input" type="text" class="bg-transparent border-none outline-none text-sm text-gray-800 dark:text-gray-200 w-full placeholder-gray-400 dark:placeholder-gray-500 font-medium" placeholder="Rechercher ou entrer une URL..." autocomplete="off">
             
             <!-- Bookmark Star Button -->
-            <button id="bookmark-btn" class="p-1 text-gray-400 hover:text-yellow-400 transition-colors" title="Ajouter aux favoris">
+            <button id="bookmark-btn" class="p-1 text-gray-400 hover:text-yellow-500 dark:hover:text-yellow-400 transition-colors" title="Ajouter aux favoris">
                 <svg id="bookmark-star" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
             </button>
 
             <!-- Search Suggestions Dropdown -->
-            <div id="suggestions-container" class="absolute top-full left-0 right-0 mt-3 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden opacity-0 pointer-events-none transition-all z-50">
+            <div id="suggestions-container" class="absolute top-full left-0 right-0 mt-3 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border border-black/10 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden opacity-0 pointer-events-none transition-all z-50">
                 <!-- Suggestions will be injected here -->
             </div>
         </div>
 
-        <div class="flex justify-end w-32 items-center gap-1">
+        <div class="flex justify-end w-40 items-center gap-1">
             <!-- Ad-blocker toggle -->
-            <button id="adblock-btn" class="p-2 rounded-lg transition-all text-gray-500 hover:text-white hover:bg-white/10" title="Bloqueur de pub">
-                <svg id="adblock-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            </button>
+            <div class="relative">
+                <button id="adblock-btn" class="p-2 rounded-lg transition-all text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10" title="Bloqueur de pub">
+                    <svg id="adblock-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </button>
+                
+                <!-- Ad-Blocker Stats Popup -->
+                <div id="adblock-popup" class="absolute top-full right-0 mt-3 w-56 bg-white dark:bg-gray-900 border border-black/10 dark:border-white/10 rounded-2xl shadow-2xl p-4 opacity-0 pointer-events-none transition-all z-50 transform scale-95 origin-top-right">
+                    <div class="flex items-center justify-between mb-4">
+                        <span class="text-xs font-bold uppercase tracking-wider text-gray-500">Bloqueur</span>
+                        <div id="adblock-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-green-500/10 text-green-600 dark:text-green-400">Actif</div>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-600 dark:text-gray-400">Pubs bloquées</span>
+                            <span id="adblock-count" class="text-lg font-bold text-blue-600 dark:text-blue-400">0</span>
+                        </div>
+                        <button id="adblock-main-toggle" class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition-colors">
+                            Désactiver le bloqueur
+                        </button>
+                    </div>
+                </div>
+            </div>
             <!-- Window controls -->
-            <button id="win-minimize" class="p-2 rounded-lg transition-all text-gray-500 hover:text-white hover:bg-white/10" title="Réduire">
+            <button id="win-minimize" class="p-2 rounded-lg transition-all text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10" title="Réduire">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>
             </button>
-            <button id="win-maximize" class="p-2 rounded-lg transition-all text-gray-500 hover:text-white hover:bg-white/10" title="Agrandir">
+            <button id="win-maximize" class="p-2 rounded-lg transition-all text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10" title="Agrandir">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
             </button>
             <button id="win-close" class="p-2 rounded-lg transition-all text-gray-500 hover:text-white hover:bg-red-500/80" title="Fermer">
@@ -101,21 +121,21 @@
     </header>
 
     <!-- Sidebar Overlay & Panel -->
-    <div id="sidebar-overlay" class="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-40 opacity-0 pointer-events-none transition-opacity duration-300"></div>
-    <aside id="sidebar" class="fixed top-0 right-0 h-full w-[350px] bg-gray-900/90 backdrop-blur-xl border-l border-white/10 z-50 transform translate-x-full transition-transform duration-300 ease-out shadow-2xl flex flex-col">
-        <div class="p-6 border-b border-white/5 space-y-4">
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/10 dark:bg-black/40 backdrop-blur-[2px] z-40 opacity-0 pointer-events-none transition-opacity duration-300"></div>
+    <aside id="sidebar" class="fixed top-0 right-0 h-full w-[350px] bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl border-l border-black/10 dark:border-white/10 z-50 transform translate-x-full transition-transform duration-300 ease-out shadow-2xl flex flex-col">
+        <div class="p-6 border-b border-black/5 dark:border-white/5 space-y-4">
             <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-1 bg-gray-950/50 p-1 rounded-xl border border-white/5">
-                    <button id="sb-show-history" class="px-4 py-1.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all text-blue-400 bg-blue-500/10 active-sb-tab">Historique</button>
-                    <button id="sb-show-bookmarks" class="px-4 py-1.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all text-gray-400 hover:text-white">Favoris</button>
+                <div class="flex items-center space-x-1 bg-black/5 dark:bg-gray-950/50 p-1 rounded-xl border border-black/5 dark:border-white/5">
+                    <button id="sb-show-history" class="px-4 py-1.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all text-blue-600 dark:text-blue-400 bg-white dark:bg-blue-500/10 shadow-sm dark:shadow-none active-sb-tab">Historique</button>
+                    <button id="sb-show-bookmarks" class="px-4 py-1.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">Favoris</button>
                 </div>
-                <button id="close-sidebar" class="p-2 text-gray-500 hover:text-white transition-colors">
+                <button id="close-sidebar" class="p-2 text-gray-500 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
                 </button>
             </div>
             <div class="relative group">
-                <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-blue-400 transition-colors" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                <input id="sidebar-search" type="text" placeholder="Rechercher..." class="w-full bg-gray-950/50 border border-white/5 rounded-xl py-2 pl-9 pr-4 text-sm text-gray-200 outline-none focus:border-blue-500/50 focus:bg-gray-950/80 transition-all">
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-600 group-focus-within:text-blue-500 dark:group-focus-within:text-blue-400 transition-colors" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input id="sidebar-search" type="text" placeholder="Rechercher..." class="w-full bg-black/5 dark:bg-gray-950/50 border border-black/5 dark:border-white/5 rounded-xl py-2 pl-9 pr-4 text-sm text-gray-900 dark:text-gray-200 outline-none focus:border-blue-500/50 focus:bg-white dark:focus:bg-gray-950/80 transition-all">
             </div>
         </div>
         <div id="sidebar-content" class="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
