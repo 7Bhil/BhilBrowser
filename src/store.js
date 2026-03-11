@@ -1,9 +1,23 @@
 const fs = require('fs');
 const path = require('path');
-const { app } = require('@electron/remote');
 
-// Get the user data directory for persistent storage
-const userDataPath = app.getPath('userData');
+// Works in main renderer (via @electron/remote) AND in nodeintegration webviews
+let userDataPath;
+try {
+    // Main renderer context: @electron/remote is initialized
+    userDataPath = require('@electron/remote').app.getPath('userData');
+} catch(e) {
+    try {
+        // Inside a webview with nodeintegration: use electron directly
+        const { app } = require('electron');
+        userDataPath = app.getPath('userData');
+    } catch(e2) {
+        // Fallback: use a temp directory
+        userDataPath = require('os').homedir() + '/.bhilbrowser';
+        if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath);
+    }
+}
+
 const bookmarksFile = path.join(userDataPath, 'bookmarks.json');
 const historyFile = path.join(userDataPath, 'history.json');
 

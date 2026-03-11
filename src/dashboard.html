@@ -145,17 +145,12 @@
         </main>
 
     <script>
-        const Store = require('./store');
-
-        function renderHistory() {
-            const history = Store.getHistory();
+        function renderHistory(history) {
             const list = document.getElementById('history-list');
-            
-            if (history.length === 0) {
+            if (!history || history.length === 0) {
                 list.innerHTML = '<div class="text-center py-12 text-gray-600 bg-gray-900/30 rounded-2xl border border-white/5 border-dashed">Aucun historique pour le moment</div>';
                 return;
             }
-
             list.innerHTML = history.slice(0, 15).map(item => `
                 <a href="${item.url}" class="group flex items-center justify-between p-4 bg-gray-900/40 hover:bg-gray-800/60 rounded-xl border border-white/5 transition-all hover:scale-[1.01] active:scale-[0.99]">
                     <div class="flex items-center gap-4 overflow-hidden">
@@ -172,15 +167,12 @@
             `).join('');
         }
 
-        function renderBookmarks() {
-            const bookmarks = Store.getBookmarks();
+        function renderBookmarks(bookmarks) {
             const list = document.getElementById('bookmarks-list');
-
-            if (bookmarks.length === 0) {
+            if (!bookmarks || bookmarks.length === 0) {
                 list.innerHTML = '<div class="text-center py-8 text-gray-600 bg-gray-900/30 rounded-2xl border border-white/5 border-dashed">Aucun favori</div>';
                 return;
             }
-
             list.innerHTML = bookmarks.map(item => `
                 <a href="${item.url}" class="group flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition-all">
                     <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500/20 to-orange-500/20 flex items-center justify-center shrink-0">
@@ -194,18 +186,19 @@
             `).join('');
         }
 
+        // Called by renderer.js after page loads
+        window.injectDashboardData = function(history, bookmarks) {
+            renderHistory(history);
+            renderBookmarks(bookmarks);
+        };
+
         function clearHistory() {
+            // Signal to parent renderer to clear history
             if (confirm('Voulez-vous vraiment effacer tout l\'historique ?')) {
-                Store.clearHistory();
-                renderHistory();
+                window.dispatchEvent(new CustomEvent('clear-history'));
+                renderHistory([]);
             }
         }
-
-        // Initial render
-        window.onload = () => {
-            renderHistory();
-            renderBookmarks();
-        };
         function updateClock() {
             const now = new Date();
             const h = String(now.getHours()).padStart(2, '0');

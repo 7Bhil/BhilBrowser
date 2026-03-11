@@ -1,5 +1,6 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
+require('@electron/remote/main').initialize();
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -8,11 +9,14 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      webviewTag: true // Required for the browser view
+      webviewTag: true, // Required for the browser view
+      nodeIntegrationInSubFrames: true
     },
     titleBarStyle: 'hiddenInset', // Fancy macOS style if applicable, or just cleaner look
     backgroundColor: '#111827' // Dark gray-900
   });
+
+  require("@electron/remote/main").enable(win.webContents);
 
   win.loadFile(path.join(__dirname, 'src/index.html'));
   
