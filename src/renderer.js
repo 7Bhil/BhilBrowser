@@ -1,4 +1,5 @@
 const path = require('path');
+const Store = require('./store');
 
 // Select DOM elements
 const tabBar = document.getElementById('tab-bar');
@@ -9,6 +10,9 @@ const backBtn = document.getElementById('back');
 const forwardBtn = document.getElementById('forward');
 const refreshBtn = document.getElementById('refresh');
 const homeBtn = document.getElementById('home');
+const historyBtn = document.getElementById('history-btn');
+const bookmarkBtn = document.getElementById('bookmark-btn');
+const bookmarkStar = document.getElementById('bookmark-star');
 const indicatorLeft = document.getElementById('swipe-indicator-left');
 const indicatorRight = document.getElementById('swipe-indicator-right');
 
@@ -27,6 +31,7 @@ class TabManager {
 
         this.setupGeneralListeners();
         this.setupGlobalGestureListener();
+        this.setupKeyboardShortcuts();
         this.createTab();
     }
 
@@ -64,7 +69,50 @@ class TabManager {
             this.navigateActiveTab(`file://${path.join(__dirname, 'dashboard.html')}`);
         });
 
+        historyBtn.addEventListener('click', () => {
+            // Future: Show history modal or page
+            alert('Historique bientôt disponible !');
+        });
+
+        bookmarkBtn.addEventListener('click', () => {
+            const wv = this.getActiveWebview();
+            if (!wv) return;
+            const url = wv.getURL();
+            const title = wv.getTitle();
+
+            if (Store.isBookmarked(url)) {
+                Store.removeBookmark(url);
+            } else {
+                Store.saveBookmark({ url, title });
+            }
+            this.updateBookmarkUI(url);
+        });
+    }
+
+    setupKeyboardShortcuts() {
         window.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key.toLowerCase()) {
+                    case 't':
+                        e.preventDefault();
+                        this.createTab();
+                        break;
+                    case 'w':
+                        e.preventDefault();
+                        if (this.activeTabId !== null) this.closeTab(this.activeTabId);
+                        break;
+                    case 'l':
+                        e.preventDefault();
+                        urlInput.focus();
+                        urlInput.select();
+                        break;
+                    case 'r':
+                        e.preventDefault();
+                        const wv = this.getActiveWebview();
+                        if (wv) wv.reload();
+                        break;
+                }
+            }
             if (e.altKey) {
                 const wv = this.getActiveWebview();
                 if (!wv) return;
@@ -74,7 +122,7 @@ class TabManager {
         });
     }
 
-    // Handles gestures for the UI areas (Tabs, Nav Bar)
+    // Handles gestures for the UI areas
     setupGlobalGestureListener() {
         window.addEventListener('wheel', (e) => {
             if (e.target.closest('webview')) return;
@@ -87,8 +135,6 @@ class TabManager {
         if (!wv || this.isWaitingForLoad) return;
 
         const now = Date.now();
-        
-        // Reset if vertical scroll or pause between scrolls
         if (Math.abs(deltaY) > Math.abs(deltaX) * 1.5 || now - this.lastScrollTime > 150) {
             if (!this.isThresholdMet) {
                 this.scrollDeltaX = 0;
@@ -99,29 +145,21 @@ class TabManager {
 
         if (Math.abs(deltaX) > 0.5) {
             this.scrollDeltaX += deltaX;
-            
             const triggerThreshold = 250; 
             const isLeft = this.scrollDeltaX < 0;
             const activeIndicator = isLeft ? indicatorLeft : indicatorRight;
             const inactiveIndicator = isLeft ? indicatorRight : indicatorLeft;
 
-            // 1. Calculate Progress
             const progress = Math.min(1, Math.abs(this.scrollDeltaX) / triggerThreshold);
             
-            // 2. Animate Indicators (Gâchette de Navigation)
             if (Math.abs(this.scrollDeltaX) > 10) {
-                // Move closer to center: from -100% to +40% (instead of 0)
-                const translateX = isLeft ? 
-                    (-100 + (progress * 140)) : 
-                    (100 - (progress * 140));
+                const translateX = isLeft ? (-100 + (progress * 140)) : (100 - (progress * 140));
                 activeIndicator.style.transform = `translateY(-50%) translateX(${translateX}%)`;
                 activeIndicator.style.opacity = progress;
                 
                 const innerCircle = activeIndicator.querySelector('div');
                 if (innerCircle) {
                     innerCircle.style.transform = `scale(${0.6 + (progress * 0.4)})`;
-                    
-                    // "Armed" State visual feedback
                     if (Math.abs(this.scrollDeltaX) >= triggerThreshold) {
                         innerCircle.style.backgroundColor = 'rgba(59, 130, 246, 0.9)';
                         innerCircle.style.borderColor = '#ffffff';
@@ -134,15 +172,12 @@ class TabManager {
                         this.isThresholdMet = false;
                     }
                 }
-                
                 inactiveIndicator.style.opacity = '0';
             }
 
-            // 3. Setup "On-Release" trigger
             clearTimeout(this.gestureTimeout);
             this.gestureTimeout = setTimeout(() => {
                 if (this.isThresholdMet) {
-                    console.log('>>> GESTURE VALIDATED ON RELEASE');
                     if (isLeft && wv.canGoBack()) {
                         wv.goBack();
                         this.isWaitingForLoad = true;
@@ -159,7 +194,7 @@ class TabManager {
                 }
                 this.scrollDeltaX = 0;
                 this.isThresholdMet = false;
-            }, 100); // Wait for 100ms of inactivity to detect "release"
+            }, 100);
         }
     }
 
@@ -233,6 +268,12 @@ class TabManager {
                     this.resetVisualFeedback();
                     this.isWaitingForLoad = false;
                 }
+                
+                // Track History
+                const url = wv.getURL();
+                const title = wv.getTitle();
+                Store.addHistory({ url, title });
+                this.updateBookmarkUI(url);
             }
             updateUI();
         });
@@ -264,6 +305,18 @@ class TabManager {
         });
     }
 
+    updateBookmarkUI(url) {
+        if (Store.isBookmarked(url)) {
+            bookmarkStar.style.fill = '#facc15';
+            bookmarkStar.style.stroke = '#facc15';
+            bookmarkStar.parentElement.classList.add('text-yellow-400');
+        } else {
+            bookmarkStar.style.fill = 'none';
+            bookmarkStar.style.stroke = 'currentColor';
+            bookmarkStar.parentElement.classList.remove('text-yellow-400');
+        }
+    }
+
     resetVisualFeedback() {
         backBtn.style.transform = 'scale(1)';
         forwardBtn.style.transform = 'scale(1)';
@@ -272,7 +325,6 @@ class TabManager {
         backBtn.style.filter = '';
         forwardBtn.style.filter = '';
 
-        // Reset Indicators
         if (indicatorLeft) {
             indicatorLeft.style.transform = 'translateY(-50%) translateX(-100%)';
             indicatorLeft.style.opacity = '0';
@@ -310,7 +362,10 @@ class TabManager {
                 tab.tabEl.classList.remove('bg-gray-900', 'text-gray-400');
                 tab.webview.classList.remove('invisible');
                 this.activeTabId = id;
-                if (tab.isReady) this.syncBrowserUI(tab.webview);
+                if (tab.isReady) {
+                    this.syncBrowserUI(tab.webview);
+                    this.updateBookmarkUI(tab.webview.getURL());
+                }
             } else {
                 tab.tabEl.classList.add('bg-gray-900', 'text-gray-400');
                 tab.tabEl.classList.remove('bg-gray-700', 'text-white', 'border-gray-600');
@@ -339,6 +394,7 @@ class TabManager {
             forwardBtn.disabled = !wv.canGoForward();
             backBtn.style.opacity = wv.canGoBack() ? '1' : '0.3';
             forwardBtn.style.opacity = wv.canGoForward() ? '1' : '0.3';
+            this.updateBookmarkUI(url);
         } catch (e) {}
     }
 

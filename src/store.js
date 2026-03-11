@@ -1,0 +1,81 @@
+const fs = require('fs');
+const path = require('path');
+const { app } = require('@electron/remote');
+
+// Get the user data directory for persistent storage
+const userDataPath = app.getPath('userData');
+const bookmarksFile = path.join(userDataPath, 'bookmarks.json');
+const historyFile = path.join(userDataPath, 'history.json');
+
+class Store {
+    static getBookmarks() {
+        try {
+            if (!fs.existsSync(bookmarksFile)) return [];
+            return JSON.parse(fs.readFileSync(bookmarksFile, 'utf-8'));
+        } catch (e) {
+            console.error('Failed to read bookmarks:', e);
+            return [];
+        }
+    }
+
+    static saveBookmark(bookmark) {
+        let bookmarks = this.getBookmarks();
+        // Prevent duplicates
+        if (!bookmarks.find(b => b.url === bookmark.url)) {
+            bookmarks.push({
+                url: bookmark.url,
+                title: bookmark.title,
+                date: Date.now()
+            });
+            fs.writeFileSync(bookmarksFile, JSON.stringify(bookmarks, null, 2));
+        }
+    }
+
+    static removeBookmark(url) {
+        let bookmarks = this.getBookmarks();
+        bookmarks = bookmarks.filter(b => b.url !== url);
+        fs.writeFileSync(bookmarksFile, JSON.stringify(bookmarks, null, 2));
+    }
+
+    static isBookmarked(url) {
+        const bookmarks = this.getBookmarks();
+        return !!bookmarks.find(b => b.url === url);
+    }
+
+    static getHistory() {
+        try {
+            if (!fs.existsSync(historyFile)) return [];
+            return JSON.parse(fs.readFileSync(historyFile, 'utf-8'));
+        } catch (e) {
+            console.error('Failed to read history:', e);
+            return [];
+        }
+    }
+
+    static addHistory(entry) {
+        // Don't log internal pages or very short visits
+        if (entry.url.startsWith('file://')) return;
+
+        let history = this.getHistory();
+        
+        // Remove existing entry for same URL to "move to top"
+        history = history.filter(h => h.url !== entry.url);
+        
+        history.unshift({
+            url: entry.url,
+            title: entry.title,
+            date: Date.now()
+        });
+
+        // Limit history to 500 entries
+        if (history.length > 500) history = history.slice(0, 500);
+        
+        fs.writeFileSync(historyFile, JSON.stringify(history, null, 2));
+    }
+
+    static clearHistory() {
+        fs.writeFileSync(historyFile, JSON.stringify([], null, 2));
+    }
+}
+
+module.exports = Store;

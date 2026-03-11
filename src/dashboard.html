@@ -101,26 +101,111 @@
         <input type="text" id="search-input" placeholder="Rechercher sur le web..." autofocus>
     </div>
 
-    <div class="quick-links">
-        <a href="https://github.com" class="link-card">
-            <div class="icon-box glass">G</div>
-            <span class="text-xs opacity-70">GitHub</span>
-        </a>
-        <a href="https://youtube.com" class="link-card">
-            <div class="icon-box glass">Y</div>
-            <span class="text-xs opacity-70">YouTube</span>
-        </a>
-        <a href="https://twitter.com" class="link-card">
-            <div class="icon-box glass">T</div>
-            <span class="text-xs opacity-70">Twitter</span>
-        </a>
-        <a href="https://chatgpt.com" class="link-card">
-            <div class="icon-box glass">AI</div>
-            <span class="text-xs opacity-70">ChatGPT</span>
-        </a>
-    </div>
+    <!-- Main Content -->
+        <main class="max-w-6xl mx-auto px-6 py-12">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <!-- History Section (Left/Center) -->
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-400"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            Historique Récent
+                        </h3>
+                        <button onclick="clearHistory()" class="text-xs text-gray-500 hover:text-red-400 transition-colors">Effacer tout</button>
+                    </div>
+                    
+                    <div id="history-list" class="space-y-2">
+                        <!-- History items will be injected here -->
+                        <div class="text-center py-12 text-gray-600 bg-gray-900/30 rounded-2xl border border-white/5 border-dashed">
+                            Aucun historique pour le moment
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bookmarks Section (Right Sidebar) -->
+                <div class="space-y-6">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-400"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                            Favoris
+                        </h3>
+                        <a href="favorites.html" class="text-[10px] text-blue-400 hover:text-blue-300 font-bold uppercase tracking-widest transition-colors">Tout voir</a>
+                    </div>
+                    
+                    <div id="bookmarks-list" class="grid grid-cols-1 gap-3">
+                        <!-- Bookmark items will be injected here -->
+                        <div class="text-center py-8 text-gray-600 bg-gray-900/30 rounded-2xl border border-white/5 border-dashed">
+                            Aucun favori
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
 
     <script>
+        const Store = require('./store');
+
+        function renderHistory() {
+            const history = Store.getHistory();
+            const list = document.getElementById('history-list');
+            
+            if (history.length === 0) {
+                list.innerHTML = '<div class="text-center py-12 text-gray-600 bg-gray-900/30 rounded-2xl border border-white/5 border-dashed">Aucun historique pour le moment</div>';
+                return;
+            }
+
+            list.innerHTML = history.slice(0, 15).map(item => `
+                <a href="${item.url}" class="group flex items-center justify-between p-4 bg-gray-900/40 hover:bg-gray-800/60 rounded-xl border border-white/5 transition-all hover:scale-[1.01] active:scale-[0.99]">
+                    <div class="flex items-center gap-4 overflow-hidden">
+                        <div class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                            <img src="https://www.google.com/s2/favicons?sz=64&domain=${new URL(item.url).hostname}" class="w-4 h-4" onerror="this.src='https://www.google.com/s2/favicons?sz=64&domain=google.com'">
+                        </div>
+                        <div class="overflow-hidden">
+                            <p class="text-sm font-medium text-gray-200 truncate group-hover:text-blue-400 transition-colors">${item.title || item.url}</p>
+                            <p class="text-xs text-gray-500 truncate">${new URL(item.url).hostname}</p>
+                        </div>
+                    </div>
+                    <span class="text-[10px] text-gray-600 font-mono">${new Date(item.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                </a>
+            `).join('');
+        }
+
+        function renderBookmarks() {
+            const bookmarks = Store.getBookmarks();
+            const list = document.getElementById('bookmarks-list');
+
+            if (bookmarks.length === 0) {
+                list.innerHTML = '<div class="text-center py-8 text-gray-600 bg-gray-900/30 rounded-2xl border border-white/5 border-dashed">Aucun favori</div>';
+                return;
+            }
+
+            list.innerHTML = bookmarks.map(item => `
+                <a href="${item.url}" class="group flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition-all">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-500/20 to-orange-500/20 flex items-center justify-center shrink-0">
+                        <img src="https://www.google.com/s2/favicons?sz=64&domain=${new URL(item.url).hostname}" class="w-5 h-5">
+                    </div>
+                    <div class="overflow-hidden">
+                        <p class="text-sm font-semibold text-gray-200 truncate group-hover:text-yellow-400 transition-colors">${item.title || item.url}</p>
+                        <p class="text-xs text-gray-500 truncate">${new URL(item.url).hostname}</p>
+                    </div>
+                </a>
+            `).join('');
+        }
+
+        function clearHistory() {
+            if (confirm('Voulez-vous vraiment effacer tout l\'historique ?')) {
+                Store.clearHistory();
+                renderHistory();
+            }
+        }
+
+        // Initial render
+        window.onload = () => {
+            renderHistory();
+            renderBookmarks();
+        };
         function updateClock() {
             const now = new Date();
             const h = String(now.getHours()).padStart(2, '0');
