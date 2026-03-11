@@ -1,0 +1,21 @@
+{
+  "name": "bhilbrowser",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:css": "npx tailwindcss -i ./src/input.css -o ./src/style.css --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "autoprefixer": "^10.4.27",
+    "electron": "^41.0.0",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^3.4.19"
+  }
+}
