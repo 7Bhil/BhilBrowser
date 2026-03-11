@@ -1,5 +1,9 @@
+const { ipcRenderer } = require('electron');
 const path = require('path');
 const Store = require('./store');
+
+// Detect if we are in a private window
+const isPrivate = new URLSearchParams(window.location.search).get('private') === 'true';
 
 // Select DOM elements
 const tabBar = document.getElementById('tab-bar');
@@ -10,6 +14,7 @@ const backBtn = document.getElementById('back');
 const forwardBtn = document.getElementById('forward');
 const refreshBtn = document.getElementById('refresh');
 const homeBtn = document.getElementById('home');
+const privateBtn = document.getElementById('private-btn');
 const historyBtn = document.getElementById('history-btn');
 const bookmarkBtn = document.getElementById('bookmark-btn');
 const bookmarkStar = document.getElementById('bookmark-star');
@@ -118,9 +123,14 @@ class TabManager {
         homeBtn.addEventListener('click', () => {
             this.navigateActiveTab(`file://${path.join(__dirname, 'dashboard.html')}`);
         });
-
+        // History Sidebar via Button
         historyBtn.addEventListener('click', () => {
             this.toggleSidebar('history');
+        });
+
+        // Private Window via Button
+        privateBtn.addEventListener('click', () => {
+            ipcRenderer.send('new-private-window');
         });
 
         closeSidebar.addEventListener('click', () => this.toggleSidebar());
@@ -146,6 +156,35 @@ class TabManager {
                 Store.saveBookmark({ url, title });
             }
             this.updateBookmarkUI(url);
+        });
+
+        // Window controls
+        const { getCurrentWindow } = require('@electron/remote');
+        const win = getCurrentWindow();
+
+        document.getElementById('win-close').addEventListener('click', () => win.close());
+        document.getElementById('win-minimize').addEventListener('click', () => win.minimize());
+        document.getElementById('win-maximize').addEventListener('click', () => {
+            if (win.isMaximized()) win.unmaximize();
+            else win.maximize();
+        });
+
+        // Ad-blocker toggle
+        const { ipcRenderer } = require('electron');
+        const adblockBtn = document.getElementById('adblock-btn');
+        const adblockIcon = document.getElementById('adblock-icon');
+        let adblockEnabled = true;
+
+        const updateAdblockUI = (enabled) => {
+            adblockIcon.style.color = enabled ? '#34d399' : '#6b7280';
+            adblockBtn.title = enabled ? 'Bloqueur actif (cliquer pour désactiver)' : 'Bloqueur désactivé (cliquer pour activer)';
+        };
+        updateAdblockUI(true);
+
+        adblockBtn.addEventListener('click', () => {
+            adblockEnabled = !adblockEnabled;
+            ipcRenderer.send('toggle-adblock', adblockEnabled);
+            updateAdblockUI(adblockEnabled);
         });
     }
 
@@ -178,6 +217,14 @@ class TabManager {
                     case 'b':
                         e.preventDefault();
                         this.toggleSidebar('bookmarks');
+                        break;
+                    case 'n':
+                        e.preventDefault();
+                        if (e.shiftKey) {
+                            ipcRenderer.send('new-private-window');
+                        } else {
+                            ipcRenderer.send('new-window');
+                        }
                         break;
                 }
             }
@@ -314,6 +361,9 @@ class TabManager {
         webview.setAttribute('allowpopups', '');
         webview.setAttribute('nodeintegration', '');
         webview.setAttribute('preload', `file://${path.join(__dirname, 'preload.js')}`);
+        if (isPrivate) {
+            webview.setAttribute('partition', 'in-memory');
+        }
         webview.className = 'absolute inset-0 w-full h-full invisible bg-white';
 
         this.setupWebviewListeners(webview, id, tabEl);
@@ -328,6 +378,18 @@ class TabManager {
             const tab = this.tabs.find(t => t.id === id);
             if (this.activeTabId === id && tab && tab.isReady) this.syncBrowserUI(wv);
         };
+
+        // Inject CSS to hide scrollbars
+        wv.addEventListener('dom-ready', () => {
+            wv.insertCSS(`
+                ::-webkit-scrollbar {
+                    display: none !important;
+                }
+                * {
+                    scrollbar-width: none !important;
+                }
+            `);
+        });
 
         wv.addEventListener('did-start-loading', () => {
             if (this.activeTabId === id) refreshBtn.classList.add('animate-spin');
@@ -344,7 +406,9 @@ class TabManager {
                 // Track History
                 const url = wv.getURL();
                 const title = wv.getTitle();
-                Store.addHistory({ url, title });
+                if (!isPrivate) {
+                    Store.addHistory({ url, title });
+                }
                 this.updateBookmarkUI(url);
 
                 // Inject data into Dashboard if loaded
@@ -633,5 +697,10 @@ class TabManager {
 
 // Initialize
 window.addEventListener('DOMContentLoaded', () => {
+    if (isPrivate) {
+        document.body.classList.add('private-mode');
+    }
     window.activeTabManager = new TabManager();
+
+    // ── Navbar Auto-Hide (Removed per user request) ────────────────
 });
