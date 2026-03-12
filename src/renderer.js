@@ -47,9 +47,23 @@ const sbShowBookmarks = document.getElementById('sb-show-bookmarks');
 const closeSidebar = document.getElementById('close-sidebar');
 const sidebarSearch = document.getElementById('sidebar-search');
 const sidebarContent = document.getElementById('sidebar-content');
+const sbShowSessions = document.getElementById('sb-show-sessions');
+
+// Session modal elements
+const sessionModal = document.getElementById('session-modal');
+const sessionNameInput = document.getElementById('session-name-input');
+const sessionSaveBtn = document.getElementById('session-save');
+const sessionSkipBtn = document.getElementById('session-skip');
+const sessionCancelBtn = document.getElementById('session-cancel');
+const sessionModalOverlay = document.getElementById('session-modal-overlay');
 
 // Omnibox Suggestions
 const suggestionsContainer = document.getElementById('suggestions-container');
+const tabContextMenu = document.getElementById('tab-context-menu');
+const cmPin = document.getElementById('cm-pin');
+const cmDuplicate = document.getElementById('cm-duplicate');
+const cmClose = document.getElementById('cm-close');
+const pinText = document.getElementById('pin-text');
 
 class TabManager {
     constructor() {
@@ -74,9 +88,19 @@ class TabManager {
         this.activeSuggestionIndex = -1;
         this.suggestionTimeout = null;
 
+        // Context Menu State
+        this.contextMenuTabId = null;
+
         this.setupGeneralListeners();
         this.setupGlobalGestureListener();
         this.setupKeyboardShortcuts();
+        this.setupContextMenuListeners();
+        
+        // Load pinned tabs or create a default one
+        const initialPinned = Store.getPinnedTabs();
+        if (initialPinned.length > 0) {
+            initialPinned.forEach(p => this.createTab(p.url, true));
+        }
         this.createTab();
     }
 
@@ -156,6 +180,27 @@ class TabManager {
 
         sbShowHistory.addEventListener('click', () => this.setSidebarMode('history'));
         sbShowBookmarks.addEventListener('click', () => this.setSidebarMode('bookmarks'));
+        sbShowSessions.addEventListener('click', () => this.setSidebarMode('sessions'));
+
+        // Session Modal Listeners
+        sessionSaveBtn.addEventListener('click', () => this.confirmSaveSession());
+        sessionSkipBtn.addEventListener('click', () => this.skipSaveSession());
+        sessionCancelBtn.addEventListener('click', () => this.cancelSaveSession());
+        sessionModalOverlay.addEventListener('click', () => this.cancelSaveSession());
+
+        // Handle Close Interception
+        window.onbeforeunload = (e) => {
+            if (this.tabs.length > 1 && !this.isClosingForcefully) {
+                this.showSessionModal();
+                e.returnValue = false; // Prevent close
+                return false;
+            }
+        };
+
+        ipcRenderer.on('force-close', () => {
+            this.isClosingForcefully = true;
+            win.close();
+        });
 
         sidebarSearch.addEventListener('input', (e) => {
             this.sidebarSearchQuery = e.target.value.toLowerCase();
@@ -228,6 +273,81 @@ class TabManager {
                 }
             }
         });
+    }
+
+    setupContextMenuListeners() {
+        cmPin.addEventListener('click', () => {
+            if (this.contextMenuTabId !== null) {
+                this.togglePin(this.contextMenuTabId);
+                this.hideTabContextMenu();
+            }
+        });
+
+        cmDuplicate.addEventListener('click', () => {
+            if (this.contextMenuTabId !== null) {
+                const tab = this.tabs.find(t => t.id === this.contextMenuTabId);
+                if (tab) this.createTab(tab.webview.getURL());
+                this.hideTabContextMenu();
+            }
+        });
+
+        cmClose.addEventListener('click', () => {
+            if (this.contextMenuTabId !== null) {
+                this.closeTab(this.contextMenuTabId);
+                this.hideTabContextMenu();
+            }
+        });
+
+        window.addEventListener('click', (e) => {
+            if (!tabContextMenu.contains(e.target)) {
+                this.hideTabContextMenu();
+            }
+        });
+    }
+
+    showTabContextMenu(e, id) {
+        this.contextMenuTabId = id;
+        const tab = this.tabs.find(t => t.id === id);
+        if (!tab) return;
+
+        pinText.textContent = tab.isPinned ? 'Désépingler' : 'Épingler';
+        
+        tabContextMenu.style.left = `${e.clientX}px`;
+        tabContextMenu.style.top = `${e.clientY}px`;
+        tabContextMenu.classList.remove('opacity-0', 'pointer-events-none', 'scale-95');
+    }
+
+    hideTabContextMenu() {
+        tabContextMenu.classList.add('opacity-0', 'pointer-events-none', 'scale-95');
+        this.contextMenuTabId = null;
+    }
+
+    togglePin(id) {
+        const index = this.tabs.findIndex(t => t.id === id);
+        if (index === -1) return;
+        const tab = this.tabs[index];
+        const wasPinned = tab.isPinned;
+        
+        // Remove current tab
+        tab.tabEl.remove();
+        this.tabs.splice(index, 1);
+        
+        // Recreation with new pinned state
+        this.createTab(tab.webview.getURL(), !wasPinned);
+        
+        // Move content
+        const newTab = this.tabs.find(t => t.id === this.nextTabId - 1);
+        newTab.webview.remove();
+        newTab.webview = tab.webview;
+        webviewContainer.appendChild(newTab.webview);
+        
+        // Sync ready state
+        newTab.isReady = tab.isReady;
+        
+        // Persist
+        Store.savePinnedTabs(this.tabs.filter(t => t.isPinned));
+        
+        this.switchTab(newTab.id);
     }
 
     setupKeyboardShortcuts() {
@@ -375,26 +495,44 @@ class TabManager {
         }
     }
 
-    createTab(url = null) {
+    createTab(url = null, isPinned = false) {
         if (!url) {
             url = `file://${path.join(__dirname, 'dashboard.html')}`;
-            console.log('Loading Dashboard from:', url);
         }
         const id = this.nextTabId++;
         
         const tabEl = document.createElement('div');
-        tabEl.className = 'group flex items-center h-8 px-3 bg-black/5 dark:bg-gray-800 rounded-t-lg border-x border-t border-black/5 dark:border-gray-700 text-gray-600 dark:text-gray-400 max-w-[200px] min-w-[120px] transition-all cursor-pointer relative shrink-0';
+        tabEl.className = 'group flex items-center h-8 px-3 bg-black/5 dark:bg-gray-800 rounded-t-lg border-x border-t border-black/5 dark:border-gray-700 text-gray-600 dark:text-gray-400 transition-all cursor-pointer relative shrink-0';
+        
+        if (isPinned) {
+            tabEl.classList.add('w-12', 'justify-center');
+            tabEl.classList.remove('min-w-[120px]');
+        } else {
+            tabEl.classList.add('max-w-[200px]', 'min-w-[120px]');
+        }
+        
         tabEl.id = `tab-${id}`;
         tabEl.innerHTML = `
-            <span class="text-xs truncate mr-2 pointer-events-none flex-1">Home</span>
-            <button class="close-tab p-0.5 hover:bg-black/10 dark:hover:bg-gray-700 rounded transition-colors opacity-0 group-hover:opacity-100">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
+            <div class="fav-container w-4 h-4 flex-shrink-0 flex items-center justify-center ${isPinned ? '' : 'mr-2'} pointer-events-none">
+                <img src="https://www.google.com/s2/favicons?sz=64&domain=google.com" class="w-4 h-4 opacity-70">
+            </div>
+            ${isPinned ? '' : '<span class="text-xs truncate mr-2 pointer-events-none flex-1">Home</span>'}
+            ${isPinned ? '' : `
+                <button class="close-tab p-0.5 hover:bg-black/10 dark:hover:bg-gray-700 rounded transition-colors opacity-0 group-hover:opacity-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            `}
         `;
 
         tabEl.addEventListener('click', (e) => {
             if (e.target.closest('.close-tab')) this.closeTab(id);
             else this.switchTab(id);
+        });
+
+        // Context Menu Event
+        tabEl.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            this.showTabContextMenu(e, id);
         });
 
         const webview = document.createElement('webview');
@@ -410,8 +548,26 @@ class TabManager {
 
         this.setupWebviewListeners(webview, id, tabEl);
         webviewContainer.appendChild(webview);
-        tabBar.insertBefore(tabEl, addTabBtn);
-        this.tabs.push({ id, tabEl, webview, isReady: false, adsBlocked: 0 });
+
+        const tabObj = { id, tabEl, webview, isReady: false, adsBlocked: 0, isPinned };
+        
+        // Insertion sorting: Pinned always first
+        if (isPinned) {
+            const lastPinnedIndex = [...this.tabs].reverse().findIndex(t => t.isPinned);
+            if (lastPinnedIndex === -1) {
+                tabBar.insertBefore(tabEl, tabBar.firstChild);
+                this.tabs.unshift(tabObj);
+            } else {
+                const actualIndex = this.tabs.length - 1 - lastPinnedIndex;
+                const nextTabEl = this.tabs[actualIndex + 1]?.tabEl || addTabBtn;
+                tabBar.insertBefore(tabEl, nextTabEl);
+                this.tabs.splice(actualIndex + 1, 0, tabObj);
+            }
+        } else {
+            tabBar.insertBefore(tabEl, addTabBtn);
+            this.tabs.push(tabObj);
+        }
+        
         this.switchTab(id);
     }
 
@@ -477,7 +633,10 @@ class TabManager {
 
         wv.addEventListener('dom-ready', () => {
             const tab = this.tabs.find(t => t.id === id);
-            if (tab) tab.isReady = true;
+            if (tab) {
+                tab.isReady = true;
+                this.updateFavicon(wv, tabEl);
+            }
             updateUI();
         });
 
@@ -488,11 +647,6 @@ class TabManager {
             if (this.activeTabId === id) urlInput.value = e.url.includes('dashboard.html') ? '' : e.url;
         });
 
-        wv.addEventListener('page-title-updated', (e) => {
-            const title = e.title || (wv.getURL().includes('dashboard.html') ? 'Home' : 'Loading...');
-            tabEl.querySelector('span').textContent = title;
-        });
-
         wv.addEventListener('ipc-message', (e) => {
             if (e.channel === 'gesture-wheel') {
                 if (this.activeTabId === id) {
@@ -500,6 +654,18 @@ class TabManager {
                 }
             }
         });
+    }
+
+    updateFavicon(wv, tabEl) {
+        const favImg = tabEl.querySelector('.fav-container img');
+        if (favImg) {
+            try {
+                const url = new URL(wv.getURL());
+                favImg.src = `https://www.google.com/s2/favicons?sz=64&domain=${url.hostname}`;
+            } catch (e) {
+                favImg.src = 'https://www.google.com/s2/favicons?sz=64&domain=google.com';
+            }
+        }
     }
 
     updateBookmarkUI(url) {
@@ -702,21 +868,24 @@ class TabManager {
 
     setSidebarMode(mode) {
         this.sidebarMode = mode;
-        if (mode === 'history') {
-            sbShowHistory.classList.add('text-blue-600', 'dark:text-blue-400', 'bg-white', 'dark:bg-blue-500/10', 'shadow-sm', 'dark:shadow-none');
-            sbShowHistory.classList.remove('text-gray-500', 'dark:text-gray-400', 'hover:text-gray-900', 'dark:hover:text-white');
-            sbShowBookmarks.classList.remove('text-blue-600', 'dark:text-blue-400', 'bg-white', 'dark:bg-blue-500/10', 'shadow-sm', 'dark:shadow-none');
-            sbShowBookmarks.classList.add('text-gray-500', 'dark:text-gray-400', 'hover:text-gray-900', 'dark:hover:text-white');
-        } else {
-            sbShowBookmarks.classList.add('text-blue-600', 'dark:text-blue-400', 'bg-white', 'dark:bg-blue-500/10', 'shadow-sm', 'dark:shadow-none');
-            sbShowBookmarks.classList.remove('text-gray-500', 'dark:text-gray-400', 'hover:text-gray-900', 'dark:hover:text-white');
-            sbShowHistory.classList.remove('text-blue-600', 'dark:text-blue-400', 'bg-white', 'dark:bg-blue-500/10', 'shadow-sm', 'dark:shadow-none');
-            sbShowHistory.classList.add('text-gray-500', 'dark:text-gray-400', 'hover:text-gray-900', 'dark:hover:text-white');
-        }
+        [sbShowHistory, sbShowBookmarks, sbShowSessions].forEach(btn => {
+            btn.classList.remove('text-blue-600', 'border-blue-600');
+            btn.classList.add('text-gray-400', 'hover:text-gray-600', 'dark:hover:text-gray-200');
+        });
+
+        const activeBtn = mode === 'history' ? sbShowHistory : (mode === 'bookmarks' ? sbShowBookmarks : sbShowSessions);
+        activeBtn.classList.add('text-blue-600', 'border-blue-600');
+        activeBtn.classList.remove('text-gray-400', 'hover:text-gray-600', 'dark:hover:text-gray-200');
+
         this.renderSidebarContent();
     }
 
     renderSidebarContent() {
+        if (this.sidebarMode === 'sessions') {
+            this.renderSessionsContent();
+            return;
+        }
+
         const data = this.sidebarMode === 'history' ? Store.getHistory() : Store.getBookmarks();
         const filtered = data.filter(item => 
             item.title?.toLowerCase().includes(this.sidebarSearchQuery) || 
@@ -740,11 +909,93 @@ class TabManager {
                     </div>
                     <div class="overflow-hidden">
                         <p class="text-[13px] font-medium text-gray-800 dark:text-gray-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">${item.title || item.url}</p>
-                        <p class="text-[10px] text-gray-500 truncate">${new URL(item.url).hostname}</p>
+                        <p class="text-[10px] text-gray-500 truncate">${new URL(item.url) ? new URL(item.url).hostname : ''}</p>
                     </div>
                 </div>
             </div>
         `).join('');
+    }
+
+    renderSessionsContent() {
+        const sessions = Store.getSessions();
+        const sessionNames = Object.keys(sessions).filter(name => name.toLowerCase().includes(this.sidebarSearchQuery));
+
+        if (sessionNames.length === 0) {
+            sidebarContent.innerHTML = `
+                <div class="text-center py-12 text-gray-500 border border-black/10 dark:border-white/5 border-dashed rounded-2xl p-4">
+                    <p class="text-sm font-medium">Aucune session enregistrée</p>
+                </div>
+            `;
+            return;
+        }
+
+        sidebarContent.innerHTML = sessionNames.map(name => `
+            <div class="group flex items-center justify-between p-3 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-all cursor-pointer border border-transparent hover:border-black/5 dark:hover:border-white/5 shadow-sm dark:shadow-none">
+                <div class="flex items-center gap-3 overflow-hidden flex-1" onclick="window.activeTabManager.restoreSession('${name}')">
+                    <div class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+                    </div>
+                    <div class="overflow-hidden">
+                        <p class="text-[13px] font-medium text-gray-800 dark:text-gray-200 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">${name}</p>
+                        <p class="text-[10px] text-gray-500 truncate">${sessions[name].length} onglets</p>
+                    </div>
+                </div>
+                <button class="p-2 opacity-0 group-hover:opacity-100 hover:text-red-500 transition-all" onclick="window.activeTabManager.deleteSession('${name}')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/></svg>
+                </button>
+            </div>
+        `).join('');
+    }
+
+    showSessionModal() {
+        sessionModal.classList.remove('opacity-0', 'pointer-events-none');
+        sessionModal.querySelector('.transform').classList.remove('scale-95');
+        sessionNameInput.value = `Session du ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+        sessionNameInput.focus();
+    }
+
+    hideSessionModal() {
+        sessionModal.classList.add('opacity-0', 'pointer-events-none');
+        sessionModal.querySelector('.transform').classList.add('scale-95');
+    }
+
+    confirmSaveSession() {
+        const name = sessionNameInput.value.trim() || `Session ${Date.now()}`;
+        Store.saveSession(name, this.tabs);
+        this.isClosingForcefully = true;
+        getCurrentWindow().close();
+    }
+
+    skipSaveSession() {
+        this.isClosingForcefully = true;
+        getCurrentWindow().close();
+    }
+
+    cancelSaveSession() {
+        this.hideSessionModal();
+    }
+
+    restoreSession(name) {
+        const sessions = Store.getSessions();
+        const tabsData = sessions[name];
+        if (!tabsData) return;
+
+        // Close all existing tabs first
+        [...this.tabs].forEach(t => this.closeTab(t.id));
+
+        // Restore pinned tabs and then normal tabs
+        tabsData.forEach(tabData => {
+            this.createTab(tabData.url, tabData.isPinned);
+        });
+
+        this.toggleSidebar();
+    }
+
+    deleteSession(name) {
+        if (confirm(`Voulez-vous supprimer la session "${name}" ?`)) {
+            Store.deleteSession(name);
+            this.renderSessionsContent();
+        }
     }
 }
 

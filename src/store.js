@@ -21,6 +21,8 @@ try {
 const bookmarksFile = path.join(userDataPath, 'bookmarks.json');
 const historyFile = path.join(userDataPath, 'history.json');
 const settingsFile = path.join(userDataPath, 'settings.json');
+const pinnedTabsFile = path.join(userDataPath, 'pinned.json');
+const sessionsFile = path.join(userDataPath, 'sessions.json');
 
 class Store {
     static getBookmarks() {
@@ -112,6 +114,60 @@ class Store {
             fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
         } catch (e) {
             console.error('Failed to save theme:', e);
+        }
+    }
+    static getPinnedTabs() {
+        try {
+            if (!fs.existsSync(pinnedTabsFile)) return [];
+            return JSON.parse(fs.readFileSync(pinnedTabsFile, 'utf-8'));
+        } catch (e) {
+            console.error('Failed to read pinned tabs:', e);
+            return [];
+        }
+    }
+
+    static savePinnedTabs(tabs) {
+        try {
+            // Only save essential info: url and title
+            const pinnedData = tabs.map(t => ({ url: t.url, title: t.title }));
+            fs.writeFileSync(pinnedTabsFile, JSON.stringify(pinnedData, null, 2));
+        } catch (e) {
+            console.error('Failed to save pinned tabs:', e);
+        }
+    }
+
+    static getSessions() {
+        try {
+            if (!fs.existsSync(sessionsFile)) return {};
+            return JSON.parse(fs.readFileSync(sessionsFile, 'utf-8'));
+        } catch (e) {
+            console.error('Failed to read sessions:', e);
+            return {};
+        }
+    }
+
+    static saveSession(name, tabs) {
+        try {
+            const sessions = this.getSessions();
+            // Store essential tab data
+            sessions[name] = tabs.map(t => ({
+                url: t.webview ? t.webview.getURL() : t.url,
+                title: t.tabEl ? t.tabEl.querySelector('span')?.textContent || 'Home' : t.title,
+                isPinned: t.isPinned
+            }));
+            fs.writeFileSync(sessionsFile, JSON.stringify(sessions, null, 2));
+        } catch (e) {
+            console.error('Failed to save session:', e);
+        }
+    }
+
+    static deleteSession(name) {
+        try {
+            const sessions = this.getSessions();
+            delete sessions[name];
+            fs.writeFileSync(sessionsFile, JSON.stringify(sessions, null, 2));
+        } catch (e) {
+            console.error('Failed to delete session:', e);
         }
     }
 }
