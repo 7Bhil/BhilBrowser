@@ -1,6 +1,9 @@
 const { app, BrowserWindow, ipcMain, session } = require('electron');
 const path = require('path');
-require('@electron/remote/main').initialize();
+
+app.commandLine.appendSwitch('no-sandbox');
+const Store = require('./src/store');
+// Removed @electron/remote/main for security reasons
 
 // ─── Ad-Blocker Domain Blocklist ──────────────────────────────────────────────
 const AD_DOMAINS = [
@@ -31,15 +34,16 @@ function createWindow(isPrivate = false) {
     height: 800,
     frame: false,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
+      nodeIntegration: false,    // Set to false for security
+      contextIsolation: true,    // Set to true for security
       webviewTag: true,
-      nodeIntegrationInSubFrames: true
+      nodeIntegrationInSubFrames: false, // Set to false for security
+      preload: path.join(__dirname, 'src/preload.js')
     },
-    backgroundColor: isPrivate ? '#000000' : '#111827' // Darker bg for private
+    backgroundColor: isPrivate ? '#000000' : '#111827'
   });
 
-  require('@electron/remote/main').enable(win.webContents);
+  // Removed @electron/remote/main.enable(win.webContents) for security
   
   const targetUrl = isPrivate 
     ? `file://${path.join(__dirname, 'src/index.html')}?private=true`
@@ -89,11 +93,92 @@ app.whenReady().then(() => {
     console.log(`[AdBlock] ${enabled ? 'Enabled' : 'Disabled'}`);
   });
 
+  // Store IPC handlers
+  ipcMain.handle('store-get-bookmarks', () => Store.getBookmarks());
+  ipcMain.handle('store-save-bookmark', (event, bookmark) => Store.saveBookmark(bookmark));
+  ipcMain.handle('store-remove-bookmark', (event, url) => Store.removeBookmark(url));
+  ipcMain.handle('store-is-bookmarked', (event, url) => Store.isBookmarked(url));
+  ipcMain.handle('store-get-history', () => Store.getHistory());
+  ipcMain.handle('store-add-history', (event, entry) => Store.addHistory(entry));
+  ipcMain.handle('store-clear-history', () => Store.clearHistory());
+  ipcMain.handle('store-get-settings', () => Store.getSettings());
+  ipcMain.handle('store-save-settings', (event, settings) => Store.saveSettings(settings));
+  ipcMain.handle('store-get-theme', () => Store.getTheme());
+  ipcMain.handle('store-get-pinned-tabs', () => Store.getPinnedTabs());
+  ipcMain.handle('store-save-pinned-tabs', (event, tabs) => Store.savePinnedTabs(tabs));
+  ipcMain.handle('store-get-sessions', () => Store.getSessions());
+  ipcMain.handle('store-save-session', (event, name, tabs) => Store.saveSession(name, tabs));
+  ipcMain.handle('store-delete-session', (event, name) => Store.deleteSession(name));
+
+  ipcMain.on('get-preload-path', (event) => {
+    event.returnValue = path.join(__dirname, 'src/preload.js');
+  });
+
   // Open a new Window
   ipcMain.on('new-window', () => createWindow(false));
   
   // Open a new Private Window
   ipcMain.on('new-private-window', () => createWindow(true));
+
+  // Window Controls
+  ipcMain.on('window-close', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) win.close();
+  });
+  ipcMain.on('window-minimize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) win.minimize();
+  });
+  ipcMain.on('window-maximize', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win) {
+      if (win.isMaximized()) win.unmaximize();
+      else win.maximize();
+    }
+  });
+
+  // Handle Downloads
+  const handleDownload = (event, item, webContents) => {
+    const filename = item.getFilename();
+    const totalBytes = item.getTotalBytes();
+    
+    item.on('updated', (event, state) => {
+      if (state === 'interrupted') {
+        console.log('Download is interrupted but can be resumed');
+      } else if (state === 'progressing') {
+        if (item.isPaused()) {
+          console.log('Download is paused');
+        } else {
+          try {
+            const wc = require('electron').webContents.fromId(webContents.id);
+            const target = wc.hostWebContents || wc;
+            target.send('download-progress', {
+              filename,
+              receivedBytes: item.getReceivedBytes(),
+              totalBytes,
+              state: 'progressing'
+            });
+          } catch(e) {}
+        }
+      }
+    });
+
+    item.once('done', (event, state) => {
+      try {
+        const wc = require('electron').webContents.fromId(webContents.id);
+        const target = wc.hostWebContents || wc;
+        target.send('download-progress', {
+          filename,
+          receivedBytes: totalBytes,
+          totalBytes,
+          state: state === 'completed' ? 'completed' : 'failed'
+        });
+      } catch(e) {}
+    });
+  };
+
+  session.defaultSession.on('will-download', handleDownload);
+  privateSession.on('will-download', handleDownload);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

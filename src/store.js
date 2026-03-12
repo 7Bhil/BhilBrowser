@@ -1,21 +1,15 @@
 const fs = require('fs');
 const path = require('path');
 
-// Works in main renderer (via @electron/remote) AND in nodeintegration webviews
+// Works in main process
 let userDataPath;
 try {
-    // Main renderer context: @electron/remote is initialized
-    userDataPath = require('@electron/remote').app.getPath('userData');
+    const { app } = require('electron');
+    userDataPath = app.getPath('userData');
 } catch(e) {
-    try {
-        // Inside a webview with nodeintegration: use electron directly
-        const { app } = require('electron');
-        userDataPath = app.getPath('userData');
-    } catch(e2) {
-        // Fallback: use a temp directory
-        userDataPath = require('os').homedir() + '/.bhilbrowser';
-        if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath);
-    }
+    // Fallback: use a temp directory
+    userDataPath = require('os').homedir() + '/.bhilbrowser';
+    if (!fs.existsSync(userDataPath)) fs.mkdirSync(userDataPath);
 }
 
 const bookmarksFile = path.join(userDataPath, 'bookmarks.json');
@@ -106,14 +100,49 @@ class Store {
 
     static setTheme(theme) {
         try {
-            let settings = {};
-            if (fs.existsSync(settingsFile)) {
-                settings = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
-            }
-            settings.theme = theme;
-            fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+            this.saveSettings({ theme });
         } catch (e) {
             console.error('Failed to save theme:', e);
+        }
+    }
+
+    static getSettings() {
+        try {
+            if (!fs.existsSync(settingsFile)) return {
+                theme: 'dark',
+                nickname: 'Bhil',
+                searchEngine: 'https://www.google.com/search?q=',
+                homepage: 'dashboard'
+            };
+            const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
+            const result = {
+                theme: settings.theme || 'dark',
+                nickname: settings.nickname || 'Bhil',
+                searchEngine: settings.searchEngine || 'https://www.google.com/search?q=',
+                homepage: settings.homepage || 'dashboard'
+            };
+            // Double check if homepage is accidentally set to a user name/partial string
+            if (result.homepage && result.homepage.length < 5 && result.homepage !== 'dashboard') {
+                 result.homepage = 'dashboard';
+            }
+            return result;
+        } catch (e) {
+            return {
+                theme: 'dark',
+                nickname: 'Bhil',
+                searchEngine: 'https://www.google.com/search?q=',
+                homepage: 'dashboard'
+            };
+        }
+    }
+
+    static saveSettings(newSettings) {
+        try {
+            let settings = this.getSettings();
+            settings = { ...settings, ...newSettings };
+            fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
+        } catch (e) {
+            console.error('Failed to save settings:', e);
         }
     }
     static getPinnedTabs() {

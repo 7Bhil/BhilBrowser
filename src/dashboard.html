@@ -10,7 +10,7 @@
         body {
             margin: 0;
             padding: 0;
-            padding-top: 5rem; /* Offset to push clock down below navbar */
+            padding-top: 15rem; /* Pushed significantly lower for visibility */
             height: 100vh;
             display: flex;
             flex-direction: column;
@@ -210,21 +210,31 @@
             }).join('');
         }
 
+        let currentSearchEngine = "https://www.google.com/search?q=";
+
         // Called by renderer.js after page loads
-        window.injectDashboardData = function(history, bookmarks, theme = 'dark') {
+        window.injectDashboardData = function(history, bookmarks, theme = 'dark', searchEngine, nickname = 'Bhil') {
             if (theme === 'dark') {
                 document.documentElement.classList.add('dark');
             } else {
                 document.documentElement.classList.remove('dark');
             }
+            if (searchEngine) currentSearchEngine = searchEngine;
+            
+            // Set nickname for updateClock and initial display
+            window.userNickname = nickname;
+            updateClock();
+            
             renderHistory(history);
             renderBookmarks(bookmarks);
         };
 
-        function clearHistory() {
+        async function clearHistory() {
             // Signal to parent renderer to clear history
             if (confirm('Voulez-vous vraiment effacer tout l\'historique ?')) {
-                window.dispatchEvent(new CustomEvent('clear-history'));
+                if (window.electronAPI && window.electronAPI.store) {
+                    await window.electronAPI.store.clearHistory();
+                }
                 renderHistory([]);
             }
         }
@@ -232,13 +242,15 @@
             const now = new Date();
             const h = String(now.getHours()).padStart(2, '0');
             const m = String(now.getMinutes()).padStart(2, '0');
-            document.getElementById('clock').textContent = `${h}:${m}`;
+            const s = String(now.getSeconds()).padStart(2, '0');
+            document.getElementById('clock').textContent = `${h}:${m}:${s}`;
             
             const hour = now.getHours();
             let g = "Bonjour";
             if (hour >= 18) g = "Bonsoir";
             if (hour >= 23 || hour < 5) g = "Bonne nuit";
-            document.getElementById('greeting').textContent = `${g}, Bhil`;
+            const nickname = window.userNickname || "Bhil";
+            document.getElementById('greeting').textContent = `${g}, ${nickname}`;
         }
 
         setInterval(updateClock, 1000);
@@ -248,7 +260,7 @@
             if (e.key === 'Enter') {
                 const query = e.target.value.trim();
                 if (query) {
-                    window.location.href = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+                    window.location.href = currentSearchEngine + encodeURIComponent(query);
                 }
             }
         });

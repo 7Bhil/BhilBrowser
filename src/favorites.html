@@ -31,10 +31,10 @@
     </div>
 
     <script>
-        const Store = require('./store');
+        const { electronAPI } = window;
 
-        function renderFavorites() {
-            const bookmarks = Store.getBookmarks();
+        async function renderFavorites() {
+            const bookmarks = await electronAPI.store.getBookmarks();
             const grid = document.getElementById('favorites-grid');
 
             if (bookmarks.length === 0) {
@@ -65,13 +65,13 @@
             `).join('');
         }
 
-        function removeFavorite(url) {
-            Store.removeBookmark(url);
-            renderFavorites();
+        async function removeFavorite(url) {
+            await electronAPI.store.removeBookmark(url);
+            await renderFavorites();
         }
 
-        function applyTheme() {
-            const theme = Store.getTheme();
+        async function applyTheme() {
+            const theme = await electronAPI.store.getTheme();
             if (theme === 'dark') {
                 document.documentElement.classList.add('dark');
             } else {
@@ -79,9 +79,9 @@
             }
         }
 
-        window.onload = () => {
-            applyTheme();
-            renderFavorites();
+        window.onload = async () => {
+            await applyTheme();
+            await renderFavorites();
         };
     </script>
 </body>

@@ -1,18 +1,18 @@
-const { ipcRenderer } = require('electron');
-const { getCurrentWindow } = require('@electron/remote');
-const path = require('path');
-const Store = require('./store');
+// Use electronAPI provided via contextBridge (already available as global)
 
 // Detect if we are in a private window
 const isPrivate = new URLSearchParams(window.location.search).get('private') === 'true';
 
-// Apply Theme
-let currentTheme = Store.getTheme();
-if (currentTheme === 'dark') {
-    document.documentElement.classList.add('dark');
-} else {
-    document.documentElement.classList.remove('dark');
+// Initialization - Theme and start UI
+async function initializeApp() {
+    const currentTheme = await electronAPI.store.getTheme();
+    if (currentTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+    } else {
+        document.documentElement.classList.remove('dark');
+    }
 }
+initializeApp();
 
 // Ad-blocker state
 let adblockEnabled = true;
@@ -57,6 +57,32 @@ const sessionSkipBtn = document.getElementById('session-skip');
 const sessionCancelBtn = document.getElementById('session-cancel');
 const sessionModalOverlay = document.getElementById('session-modal-overlay');
 
+// Find in Page elements
+const findBar = document.getElementById('find-bar');
+const findInput = document.getElementById('find-input');
+const findResults = document.getElementById('find-results');
+const findPrev = document.getElementById('find-prev');
+const findNext = document.getElementById('find-next');
+const findClose = document.getElementById('find-close');
+
+// Settings elements
+const settingsBtn = document.getElementById('settings-btn');
+const settingsModal = document.getElementById('settings-modal');
+const settingsOverlay = document.getElementById('settings-modal-overlay');
+const settingsClose = document.getElementById('settings-close');
+const settingsSave = document.getElementById('settings-save');
+const settingsSearchSelect = document.getElementById('settings-search-engine');
+const settingsHomepageInput = document.getElementById('settings-homepage');
+const settingsClearHistory = document.getElementById('settings-clear-history');
+const settingsClearCache = document.getElementById('settings-clear-cache');
+
+// Download elements
+const downloadsBtn = document.getElementById('downloads-btn');
+const downloadsBadge = document.getElementById('downloads-badge');
+const downloadsPopup = document.getElementById('downloads-popup');
+const downloadsList = document.getElementById('downloads-list');
+const clearDownloadsBtn = document.getElementById('clear-downloads');
+
 // Omnibox Suggestions
 const suggestionsContainer = document.getElementById('suggestions-container');
 const tabContextMenu = document.getElementById('tab-context-menu');
@@ -91,23 +117,29 @@ class TabManager {
         // Context Menu State
         this.contextMenuTabId = null;
 
+        this.downloads = [];
+
         this.setupGeneralListeners();
         this.setupGlobalGestureListener();
         this.setupKeyboardShortcuts();
         this.setupContextMenuListeners();
-        
+    }
+
+    async init() {
         // Load pinned tabs or create a default one
-        const initialPinned = Store.getPinnedTabs();
+        const initialPinned = await electronAPI.store.getPinnedTabs();
         if (initialPinned.length > 0) {
-            initialPinned.forEach(p => this.createTab(p.url, true));
+            for (const p of initialPinned) {
+                await this.createTab(p.url, true);
+            }
         }
-        this.createTab();
+        await this.createTab();
     }
 
     setupGeneralListeners() {
         addTabBtn.addEventListener('click', () => this.createTab());
 
-        urlInput.addEventListener('keydown', (e) => {
+        urlInput.addEventListener('keydown', async (e) => {
             if (e.key === 'Enter') {
                 if (this.activeSuggestionIndex >= 0 && this.suggestions[this.activeSuggestionIndex]) {
                     this.navigateActiveTab(this.suggestions[this.activeSuggestionIndex].url);
@@ -115,8 +147,10 @@ class TabManager {
                 } else {
                     let url = urlInput.value.trim();
                     if (url) {
+                        const settings = await electronAPI.store.getSettings();
+                        const searchBase = settings.searchEngine || "https://www.google.com/search?q=";
                         if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('file://')) {
-                            url = (url.includes('.') && !url.includes(' ')) ? 'https://' + url : `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+                            url = (url.includes('.') && !url.includes(' ')) ? 'https://' + url : searchBase + encodeURIComponent(url);
                         }
                         this.navigateActiveTab(url);
                     }
@@ -162,8 +196,16 @@ class TabManager {
             if (wv) wv.reload();
         });
 
-        homeBtn.addEventListener('click', () => {
-            this.navigateActiveTab(`file://${path.join(__dirname, 'dashboard.html')}`);
+        homeBtn.addEventListener('click', async () => {
+            const settings = await electronAPI.store.getSettings();
+            let url;
+            if (settings.homepage && settings.homepage !== 'dashboard') {
+                url = settings.homepage;
+                if (!url.startsWith('http')) url = 'https://' + url;
+            } else {
+                url = 'dashboard.html'; // In internal structure, renderer.js is in /src/
+            }
+            this.navigateActiveTab(url);
         });
         // History Sidebar via Button
         historyBtn.addEventListener('click', () => {
@@ -172,7 +214,7 @@ class TabManager {
 
         // Private Window via Button
         privateBtn.addEventListener('click', () => {
-            ipcRenderer.send('new-private-window');
+            electronAPI.send('new-private-window');
         });
 
         closeSidebar.addEventListener('click', () => this.toggleSidebar());
@@ -188,6 +230,54 @@ class TabManager {
         sessionCancelBtn.addEventListener('click', () => this.cancelSaveSession());
         sessionModalOverlay.addEventListener('click', () => this.cancelSaveSession());
 
+        // Find in Page Listeners
+        findInput.addEventListener('input', () => this.findInPage(findInput.value, true));
+        findInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') this.findInPage(findInput.value, !e.shiftKey);
+            else if (e.key === 'Escape') this.toggleFindBar(false);
+        });
+        findPrev.addEventListener('click', () => this.findInPage(findInput.value, false));
+        findNext.addEventListener('click', () => this.findInPage(findInput.value, true));
+        findClose.addEventListener('click', () => this.toggleFindBar(false));
+
+        // Settings Listeners
+        if (settingsBtn) settingsBtn.addEventListener('click', () => this.showSettings());
+        if (settingsClose) settingsClose.addEventListener('click', () => this.hideSettings());
+        if (settingsOverlay) settingsOverlay.addEventListener('click', () => this.hideSettings());
+        if (settingsSave) settingsSave.addEventListener('click', () => this.saveSettings());
+        if (settingsClearHistory) settingsClearHistory.addEventListener('click', async () => {
+            if (confirm('Effacer tout l\'historique ?')) {
+                await electronAPI.store.clearHistory();
+                alert('Historique effacé');
+            }
+        });
+        if (settingsClearCache) settingsClearCache.addEventListener('click', () => {
+            const wv = this.getActiveWebview();
+            if (wv) {
+                wv.getWebContents().session.clearCache().then(() => alert('Cache vidé'));
+            } else {
+                alert('Ouvrez un onglet pour vider le cache');
+            }
+        });
+
+        // Downloads Listeners
+        if (downloadsBtn) downloadsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleDownloadsPopup();
+        });
+        if (clearDownloadsBtn) clearDownloadsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.downloads = [];
+            this.renderDownloads();
+            this.toggleDownloadsPopup(false);
+        });
+        document.addEventListener('click', () => this.toggleDownloadsPopup(false));
+        if (downloadsPopup) downloadsPopup.addEventListener('click', (e) => e.stopPropagation());
+
+        electronAPI.on('download-progress', (data) => {
+            this.handleDownloadUpdate(data);
+        });
+
         // Handle Close Interception
         window.onbeforeunload = (e) => {
             if (this.tabs.length > 1 && !this.isClosingForcefully) {
@@ -197,9 +287,9 @@ class TabManager {
             }
         };
 
-        ipcRenderer.on('force-close', () => {
+        electronAPI.on('force-close', () => {
             this.isClosingForcefully = true;
-            win.close();
+            electronAPI.getCurrentWindow().close();
         });
 
         sidebarSearch.addEventListener('input', (e) => {
@@ -207,29 +297,26 @@ class TabManager {
             this.renderSidebarContent();
         });
 
-        bookmarkBtn.addEventListener('click', () => {
+        bookmarkBtn.addEventListener('click', async () => {
             const wv = this.getActiveWebview();
             if (!wv) return;
             const url = wv.getURL();
             const title = wv.getTitle();
 
-            if (Store.isBookmarked(url)) {
-                Store.removeBookmark(url);
+            if (await electronAPI.store.isBookmarked(url)) {
+                await electronAPI.store.removeBookmark(url);
             } else {
-                Store.saveBookmark({ url, title });
+                await electronAPI.store.saveBookmark({ url, title });
             }
-            this.updateBookmarkUI(url);
+            await this.updateBookmarkUI(url);
         });
 
         // Window controls
-        const win = getCurrentWindow();
+        const win = electronAPI.getCurrentWindow();
 
         document.getElementById('win-close').addEventListener('click', () => win.close());
         document.getElementById('win-minimize').addEventListener('click', () => win.minimize());
-        document.getElementById('win-maximize').addEventListener('click', () => {
-            if (win.isMaximized()) win.unmaximize();
-            else win.maximize();
-        });
+        document.getElementById('win-maximize').addEventListener('click', () => win.maximize());
 
         // Ad-blocker toggle
         
@@ -252,7 +339,7 @@ class TabManager {
 
         adblockMainToggle.addEventListener('click', () => {
             adblockEnabled = !adblockEnabled;
-            ipcRenderer.send('toggle-adblock', adblockEnabled);
+            electronAPI.send('toggle-adblock', adblockEnabled);
             updateAdblockUI(adblockEnabled);
         });
 
@@ -264,7 +351,7 @@ class TabManager {
         });
 
         // Ad-blocker stats listener
-        ipcRenderer.on('ad-blocked', (event, webContentsId) => {
+        electronAPI.on('ad-blocked', (webContentsId) => {
             const tab = this.tabs.find(t => t.webview.getWebContentsId() === webContentsId);
             if (tab) {
                 tab.adsBlocked++;
@@ -345,7 +432,7 @@ class TabManager {
         newTab.isReady = tab.isReady;
         
         // Persist
-        Store.savePinnedTabs(this.tabs.filter(t => t.isPinned));
+        electronAPI.store.savePinnedTabs(this.tabs.filter(t => t.isPinned));
         
         this.switchTab(newTab.id);
     }
@@ -383,11 +470,19 @@ class TabManager {
                     case 'n':
                         e.preventDefault();
                         if (e.shiftKey) {
-                            ipcRenderer.send('new-private-window');
+                            electronAPI.send('new-private-window');
                         } else {
-                            ipcRenderer.send('new-window');
+                            electronAPI.send('new-window');
                         }
                         break;
+                    case 'f':
+                        e.preventDefault();
+                        this.toggleFindBar(true);
+                        break;
+                }
+            } else if (e.key === 'Escape') {
+                if (typeof findBar !== 'undefined' && findBar.classList.contains('opacity-100')) {
+                    this.toggleFindBar(false);
                 }
             }
             if (e.altKey) {
@@ -495,9 +590,15 @@ class TabManager {
         }
     }
 
-    createTab(url = null, isPinned = false) {
+    async createTab(url = null, isPinned = false) {
         if (!url) {
-            url = `file://${path.join(__dirname, 'dashboard.html')}`;
+            const settings = await electronAPI.store.getSettings();
+            if (settings.homepage && settings.homepage !== 'dashboard' && settings.homepage.length >= 5) {
+                url = settings.homepage;
+                if (!url.startsWith('http') && !url.startsWith('file://')) url = 'https://' + url;
+            } else {
+                url = 'dashboard.html';
+            }
         }
         const id = this.nextTabId++;
         
@@ -540,7 +641,7 @@ class TabManager {
         webview.src = url;
         webview.setAttribute('allowpopups', '');
         webview.setAttribute('nodeintegration', '');
-        webview.setAttribute('preload', `file://${path.join(__dirname, 'preload.js')}`);
+        webview.setAttribute('preload', electronAPI.getPreloadPath());
         if (isPrivate) {
             webview.setAttribute('partition', 'in-memory');
         }
@@ -572,9 +673,9 @@ class TabManager {
     }
 
     setupWebviewListeners(wv, id, tabEl) {
-        const updateUI = () => {
+        const updateUI = async () => {
             const tab = this.tabs.find(t => t.id === id);
-            if (this.activeTabId === id && tab && tab.isReady) this.syncBrowserUI(wv);
+            if (this.activeTabId === id && tab && tab.isReady) await this.syncBrowserUI(wv);
         };
 
         // Inject CSS to hide scrollbars
@@ -605,7 +706,7 @@ class TabManager {
                 const url = wv.getURL();
                 const title = wv.getTitle();
                 if (!isPrivate) {
-                    Store.addHistory({ url, title });
+                    electronAPI.store.addHistory({ url, title });
                 }
                 this.updateBookmarkUI(url);
 
@@ -618,14 +719,23 @@ class TabManager {
 
                 // Inject data into Dashboard if loaded
                 if (url.includes('dashboard.html')) {
-                    const history = JSON.stringify(Store.getHistory());
-                    const bookmarks = JSON.stringify(Store.getBookmarks());
-                    const theme = JSON.stringify(Store.getTheme() || 'dark');
-                    wv.executeJavaScript(`
-                        if (typeof window.injectDashboardData === 'function') {
-                            window.injectDashboardData(${history}, ${bookmarks}, ${theme});
-                        }
-                    `).catch((e) => console.error('Dashboard Injection Error:', e));
+                    (async () => {
+                        const history = await electronAPI.store.getHistory();
+                        const bookmarks = await electronAPI.store.getBookmarks();
+                        const settings = await electronAPI.store.getSettings();
+                        const currentTheme = settings.theme || 'dark';
+                        wv.executeJavaScript(`
+                            if (typeof window.injectDashboardData === 'function') {
+                                window.injectDashboardData(
+                                    ${JSON.stringify(history)},
+                                    ${JSON.stringify(bookmarks)},
+                                    "${currentTheme}",
+                                    "${settings.searchEngine || 'https://www.google.com/search?q='}",
+                                    "${settings.nickname || 'Bhil'}"
+                                );
+                            }
+                        `).catch((e) => console.error('Dashboard Injection Error:', e));
+                    })();
                 }
             }
             updateUI();
@@ -642,6 +752,13 @@ class TabManager {
 
         wv.addEventListener('did-navigate', updateUI);
         wv.addEventListener('did-navigate-in-page', updateUI);
+        
+        wv.addEventListener('found-in-page', (e) => {
+            const result = e.result;
+            if (this.activeTabId === id) {
+                findResults.textContent = `${result.activeMatchOrdinal || 0}/${result.matches || 0}`;
+            }
+        });
         
         wv.addEventListener('did-start-navigation', (e) => {
             if (this.activeTabId === id) urlInput.value = e.url.includes('dashboard.html') ? '' : e.url;
@@ -668,8 +785,8 @@ class TabManager {
         }
     }
 
-    updateBookmarkUI(url) {
-        if (Store.isBookmarked(url)) {
+    async updateBookmarkUI(url) {
+        if (await electronAPI.store.isBookmarked(url)) {
             bookmarkStar.style.fill = '#facc15';
             bookmarkStar.style.stroke = '#facc15';
             bookmarkStar.parentElement.classList.add('text-yellow-400');
@@ -749,7 +866,7 @@ class TabManager {
         else if (this.activeTabId === id) this.switchTab(this.tabs[Math.max(0, index - 1)].id);
     }
 
-    syncBrowserUI(wv) {
+    async syncBrowserUI(wv) {
         try {
             if (!wv || typeof wv.getURL !== 'function') return;
             const url = wv.getURL();
@@ -758,7 +875,7 @@ class TabManager {
             forwardBtn.disabled = !wv.canGoForward();
             backBtn.style.opacity = wv.canGoBack() ? '1' : '0.3';
             forwardBtn.style.opacity = wv.canGoForward() ? '1' : '0.3';
-            this.updateBookmarkUI(url);
+            await this.updateBookmarkUI(url);
         } catch (e) {}
     }
 
@@ -779,9 +896,9 @@ class TabManager {
         this.suggestionTimeout = setTimeout(() => this.fetchSuggestions(query), 150);
     }
 
-    fetchSuggestions(query) {
-        const history = Store.getHistory();
-        const bookmarks = Store.getBookmarks();
+    async fetchSuggestions(query) {
+        const history = await electronAPI.store.getHistory();
+        const bookmarks = await electronAPI.store.getBookmarks();
 
         // Local matches from history and bookmarks
         const localMatches = [...history, ...bookmarks]
@@ -884,13 +1001,13 @@ class TabManager {
         this.renderSidebarContent();
     }
 
-    renderSidebarContent() {
+    async renderSidebarContent() {
         if (this.sidebarMode === 'sessions') {
-            this.renderSessionsContent();
+            await this.renderSessionsContent();
             return;
         }
 
-        const data = this.sidebarMode === 'history' ? Store.getHistory() : Store.getBookmarks();
+        const data = this.sidebarMode === 'history' ? await electronAPI.store.getHistory() : await electronAPI.store.getBookmarks();
         const filtered = data.filter(item => 
             item.title?.toLowerCase().includes(this.sidebarSearchQuery) || 
             item.url.toLowerCase().includes(this.sidebarSearchQuery)
@@ -920,8 +1037,8 @@ class TabManager {
         `).join('');
     }
 
-    renderSessionsContent() {
-        const sessions = Store.getSessions();
+    async renderSessionsContent() {
+        const sessions = await electronAPI.store.getSessions();
         const sessionNames = Object.keys(sessions).filter(name => name.toLowerCase().includes(this.sidebarSearchQuery));
 
         if (sessionNames.length === 0) {
@@ -963,24 +1080,24 @@ class TabManager {
         sessionModal.querySelector('.transform').classList.add('scale-95');
     }
 
-    confirmSaveSession() {
+    async confirmSaveSession() {
         const name = sessionNameInput.value.trim() || `Session ${Date.now()}`;
-        Store.saveSession(name, this.tabs);
+        await electronAPI.store.saveSession(name, this.tabs);
         this.isClosingForcefully = true;
-        getCurrentWindow().close();
+        electronAPI.getCurrentWindow().close();
     }
 
     skipSaveSession() {
         this.isClosingForcefully = true;
-        getCurrentWindow().close();
+        electronAPI.getCurrentWindow().close();
     }
 
     cancelSaveSession() {
         this.hideSessionModal();
     }
 
-    restoreSession(name) {
-        const sessions = Store.getSessions();
+    async restoreSession(name) {
+        const sessions = await electronAPI.store.getSessions();
         const tabsData = sessions[name];
         if (!tabsData) return;
 
@@ -995,20 +1112,142 @@ class TabManager {
         this.toggleSidebar();
     }
 
-    deleteSession(name) {
+    async deleteSession(name) {
         if (confirm(`Voulez-vous supprimer la session "${name}" ?`)) {
-            Store.deleteSession(name);
-            this.renderSessionsContent();
+            await electronAPI.store.deleteSession(name);
+            await this.renderSessionsContent();
         }
+    }
+
+    toggleFindBar(show) {
+        if (show) {
+            findBar.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-[-10px]');
+            findBar.classList.add('opacity-100', 'translate-y-0');
+            findInput.focus();
+            findInput.select();
+            if (findInput.value) this.findInPage(findInput.value, true);
+        } else {
+            findBar.classList.add('opacity-0', 'pointer-events-none', 'translate-y-[-10px]');
+            findBar.classList.remove('opacity-100', 'translate-y-0');
+            const wv = this.getActiveWebview();
+            if (wv) wv.stopFindInPage('clearSelection');
+            findResults.textContent = '0/0';
+        }
+    }
+
+    findInPage(text, forward) {
+        const wv = this.getActiveWebview();
+        if (!wv || !text) {
+            findResults.textContent = '0/0';
+            if (wv) wv.stopFindInPage('clearSelection');
+            return;
+        }
+        wv.findInPage(text, { forward, findNext: true });
+    }
+
+    async showSettings() {
+        const settings = await electronAPI.store.getSettings();
+        document.getElementById('settings-search-engine').value = settings.searchEngine;
+        document.getElementById('settings-homepage').value = settings.homepage;
+        document.getElementById('settings-nickname').value = settings.nickname || 'Bhil';
+        
+        settingsModal.classList.remove('opacity-0', 'pointer-events-none');
+        settingsModal.classList.add('opacity-100');
+        settingsModal.querySelector('.transform').classList.remove('scale-95');
+        settingsModal.querySelector('.transform').classList.add('scale-100');
+    }
+
+    hideSettings() {
+        settingsModal.classList.add('opacity-0', 'pointer-events-none');
+        settingsModal.classList.remove('opacity-100');
+        settingsModal.querySelector('.transform').classList.add('scale-95');
+        settingsModal.querySelector('.transform').classList.remove('scale-100');
+    }
+
+    async saveSettings() {
+        const settings = {
+            searchEngine: document.getElementById('settings-search-engine').value,
+            homepage: document.getElementById('settings-homepage').value,
+            nickname: document.getElementById('settings-nickname').value || 'Bhil'
+        };
+        await electronAPI.store.saveSettings(settings);
+        this.hideSettings();
+        
+        // Refresh dashboard tabs to apply changes
+        this.tabs.forEach(t => {
+            if (t.webview.getURL().includes('dashboard.html')) {
+                // Re-trigger data injection
+                t.webview.reload();
+            }
+        });
+    }
+
+    toggleDownloadsPopup(show) {
+        if (show === undefined) show = downloadsPopup.classList.contains('opacity-0');
+        if (show) {
+            downloadsPopup.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-[-10px]');
+            downloadsPopup.classList.add('opacity-100', 'translate-y-0');
+            downloadsBadge.classList.add('opacity-0');
+        } else {
+            downloadsPopup.classList.add('opacity-0', 'pointer-events-none', 'translate-y-[-10px]');
+            downloadsPopup.classList.remove('opacity-100', 'translate-y-0');
+        }
+    }
+
+    handleDownloadUpdate(data) {
+        const index = this.downloads.findIndex(d => d.filename === data.filename);
+        if (index === -1) {
+            this.downloads.unshift(data);
+            if (!downloadsPopup.classList.contains('opacity-100')) {
+                downloadsBadge.classList.remove('opacity-0');
+            }
+        } else {
+            this.downloads[index] = data;
+        }
+        this.renderDownloads();
+    }
+
+    renderDownloads() {
+        if (this.downloads.length === 0) {
+            downloadsList.innerHTML = '<div class="px-4 py-8 text-center text-xs text-gray-400 italic">Aucun téléchargement</div>';
+            return;
+        }
+
+        downloadsList.innerHTML = this.downloads.map(d => {
+            const percent = d.totalBytes > 0 ? Math.round((d.receivedBytes / d.totalBytes) * 100) : 0;
+            let statusText = `${percent}%`;
+            let colorClass = 'text-blue-500';
+            
+            if (d.state === 'completed') {
+                statusText = 'Terminé';
+                colorClass = 'text-green-500';
+            } else if (d.state === 'failed') {
+                statusText = 'Échoué';
+                colorClass = 'text-red-500';
+            }
+
+            return `
+                <div class="px-4 py-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors group">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-semibold text-gray-700 dark:text-gray-200 truncate pr-2 flex-1">${d.filename}</span>
+                        <span class="text-[10px] font-bold ${colorClass}">${statusText}</span>
+                    </div>
+                    <div class="w-full h-1 bg-black/5 dark:bg-white/10 rounded-full overflow-hidden">
+                        <div class="h-full bg-blue-500 transition-all duration-300" style="width: ${percent}%"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 }
 
 // Initialize
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
     if (isPrivate) {
         document.body.classList.add('private-mode');
     }
     window.activeTabManager = new TabManager();
+    await window.activeTabManager.init();
 
     // ── Navbar Auto-Hide (Removed per user request) ────────────────
 });
