@@ -29,28 +29,28 @@
     "appId": "com.7bhil.bhilbrowser",
     "productName": "BhilBrowser",
     "copyright": "Copyright © 2025 7Bhil",
-    "icon": "icon.png",
+    "icon": "build/icons/icon.png",
     "files": [
       "src/**/*",
       "main.js",
       "package.json",
-      "icon.png"
+      "build/icons/icon.png"
     ],
     "linux": {
       "executableName": "bhilbrowser",
       "executableArgs": [
         "--no-sandbox"
       ],
-      "maintainer": "7Bhil <bhil@example.com>",
+      "maintainer": "7Bhil <bhil@github.com>",
       "target": [
         "AppImage",
         "deb"
       ],
-      "icon": "icon.png",
+      "icon": "build/icons/",
       "category": "Network;WebBrowser",
       "desktop": {
         "Name": "BhilBrowser",
-        "Comment": "A modern, sleek web browser",
+        "Comment": "Un navigateur moderne et rapide construit avec Electron",
         "Categories": "Network;WebBrowser;"
       }
     },
@@ -63,7 +63,7 @@
           ]
         }
       ],
-      "icon": "icon.png"
+      "icon": "build/icons/icon.png"
     },
     "mac": {
       "target": [
