@@ -38,6 +38,9 @@
     ],
     "linux": {
       "executableName": "bhilbrowser",
+      "executableArgs": [
+        "--no-sandbox"
+      ],
       "maintainer": "7Bhil <bhil@example.com>",
       "target": [
         "AppImage",
