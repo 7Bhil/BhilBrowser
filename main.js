@@ -1,8 +1,11 @@
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, ipcMain, session, nativeImage } = require('electron');
 const path = require('path');
 
+app.setAppUserModelId('bhilbrowser');
+app.setName('BhilBrowser');
 app.commandLine.appendSwitch('no-sandbox');
 const Store = require('./src/store');
+
 // Removed @electron/remote/main for security reasons
 
 // ─── Ad-Blocker Domain Blocklist ──────────────────────────────────────────────
@@ -29,10 +32,15 @@ function isAdRequest(url) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function createWindow(isPrivate = false) {
+  const iconPath = path.join(__dirname, 'src/assets/icon.png');
+  const appIcon = nativeImage.createFromPath(iconPath);
+
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
     frame: false,
+    icon: appIcon,
+    title: 'BhilBrowser',
     webPreferences: {
       nodeIntegration: false,    // Set to false for security
       contextIsolation: true,    // Set to true for security
@@ -42,6 +50,11 @@ function createWindow(isPrivate = false) {
     },
     backgroundColor: isPrivate ? '#000000' : '#111827'
   });
+
+  // Explicitly set icon after creation (required for Linux taskbar)
+  if (!appIcon.isEmpty()) {
+    win.setIcon(appIcon);
+  }
 
   // Removed @electron/remote/main.enable(win.webContents) for security
   

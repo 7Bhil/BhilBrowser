@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BhilBrowser - Dashboard</title>
+    <link rel="icon" type="image/png" href="./assets/icon.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
     <style>
@@ -108,7 +109,10 @@
     <div class="bg-overlay bg-white/70 dark:bg-black/20"></div>
 
     <div class="clock text-gray-800 dark:text-white" id="clock">00:00</div>
-    <div class="greeting text-gray-600 dark:text-gray-300" id="greeting">Bonjour, Bhil</div>
+    <div class="flex items-center gap-4 mb-10">
+        <img src="assets/icon.png" class="w-16 h-16 object-contain drop-shadow-2xl" alt="Logo">
+        <div class="greeting text-gray-600 dark:text-gray-300 !mb-0 font-medium tracking-tight" id="greeting">Bonjour, Bhil</div>
+    </div>
 
     <div class="search-container glass flex items-center gap-3 bg-white/50 dark:bg-white/5 border-black/10 dark:border-white/10 text-gray-800 dark:text-gray-200 focus-within:bg-white dark:focus-within:bg-white/10">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-500 dark:text-gray-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
