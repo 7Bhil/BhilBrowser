@@ -178,9 +178,9 @@ class TabManager {
         closeSidebar.addEventListener('click', () => this.toggleSidebar());
         sidebarOverlay.addEventListener('click', () => this.toggleSidebar());
 
-        sbShowHistory.addEventListener('click', () => this.setSidebarMode('history'));
-        sbShowBookmarks.addEventListener('click', () => this.setSidebarMode('bookmarks'));
-        sbShowSessions.addEventListener('click', () => this.setSidebarMode('sessions'));
+        sbShowHistory.addEventListener('mousedown', () => this.setSidebarMode('history'));
+        sbShowBookmarks.addEventListener('mousedown', () => this.setSidebarMode('bookmarks'));
+        sbShowSessions.addEventListener('mousedown', () => this.setSidebarMode('sessions'));
 
         // Session Modal Listeners
         sessionSaveBtn.addEventListener('click', () => this.confirmSaveSession());
@@ -868,14 +868,18 @@ class TabManager {
 
     setSidebarMode(mode) {
         this.sidebarMode = mode;
-        [sbShowHistory, sbShowBookmarks, sbShowSessions].forEach(btn => {
-            btn.classList.remove('text-blue-600', 'border-blue-600');
-            btn.classList.add('text-gray-400', 'hover:text-gray-600', 'dark:hover:text-gray-200');
+        const tabs = [sbShowHistory, sbShowBookmarks, sbShowSessions];
+        
+        tabs.forEach(btn => {
+            btn.classList.remove('text-blue-600', 'dark:text-blue-400', 'bg-white', 'dark:bg-blue-500/10', 'shadow-sm');
+            btn.classList.add('text-gray-500', 'dark:text-gray-400', 'hover:text-gray-900', 'dark:hover:text-white');
         });
 
         const activeBtn = mode === 'history' ? sbShowHistory : (mode === 'bookmarks' ? sbShowBookmarks : sbShowSessions);
-        activeBtn.classList.add('text-blue-600', 'border-blue-600');
-        activeBtn.classList.remove('text-gray-400', 'hover:text-gray-600', 'dark:hover:text-gray-200');
+        if (activeBtn) {
+            activeBtn.classList.add('text-blue-600', 'dark:text-blue-400', 'bg-white', 'dark:bg-blue-500/10', 'shadow-sm');
+            activeBtn.classList.remove('text-gray-500', 'dark:text-gray-400', 'hover:text-gray-900', 'dark:hover:text-white');
+        }
 
         this.renderSidebarContent();
     }
