@@ -29,97 +29,47 @@
 
 ---
 
-## 📦 Installation
+## � Installation & Utilisation
 
-> Choisissez votre système d'exploitation :
+Pour installer et utiliser BhilBrowser, suivez ces étapes simples :
 
-### 🐧 Linux
-
-#### Option 1 — Depuis les releases GitHub (Recommandé)
-```bash
-# Télécharger la dernière version AppImage
-wget https://github.com/7Bhil/BhilBrowser/releases/latest/download/BhilBrowser.AppImage
-
-# Rendre exécutable et lancer
-chmod +x BhilBrowser.AppImage
-./BhilBrowser.AppImage
-```
-
-#### Option 2 — Installer le paquet .deb (Ubuntu/Debian)
-```bash
-wget https://github.com/7Bhil/BhilBrowser/releases/latest/download/BhilBrowser.deb
-sudo dpkg -i BhilBrowser.deb
-```
-
-#### Option 3 — Depuis le code source
+### 1. Cloner le projet
 ```bash
 git clone https://github.com/7Bhil/BhilBrowser.git
 cd BhilBrowser
+```
+
+### 2. Installer les dépendances
+```bash
 npm install
+```
+
+### 3. Lancer le navigateur
+```bash
 npm start
 ```
 
 ---
 
-### 🪟 Windows
+## 📦 Créer votre propre exécutable (Build)
 
-#### Option 1 — Installer depuis les releases
-1. Téléchargez `BhilBrowser-Setup.exe` depuis la [page des releases](https://github.com/7Bhil/BhilBrowser/releases/latest)
-2. Lancez l'installateur et suivez les étapes
+Si vous souhaitez transformer le code en une application installable sur votre ordinateur :
 
-#### Option 2 — Depuis le code source
-```powershell
-git clone https://github.com/7Bhil/BhilBrowser.git
-cd BhilBrowser
-npm install
-npm start
-```
-
----
-
-### 🍎 macOS
-
-#### Option 1 — Installer depuis les releases
-1. Téléchargez `BhilBrowser.dmg` depuis la [page des releases](https://github.com/7Bhil/BhilBrowser/releases/latest)
-2. Ouvrez le `.dmg` et glissez **BhilBrowser** dans votre dossier Applications
-
-#### Option 2 — Depuis le code source
+### 🐧 Linux (AppImage & .deb)
 ```bash
-git clone https://github.com/7Bhil/BhilBrowser.git
-cd BhilBrowser
-npm install
-npm start
-```
-
----
-
-## 🛠️ Développement
-
-### Prérequis
-- [Node.js](https://nodejs.org/) v18+
-- npm v9+
-
-### Lancer en mode développement
-```bash
-git clone https://github.com/7Bhil/BhilBrowser.git
-cd BhilBrowser
-npm install
-npm start
-```
-
-### Compiler les builds
-```bash
-# Linux (AppImage + .deb)
 npm run dist:linux
+```
+*Le fichier installable sera généré dans le dossier `dist/`.*
 
-# Windows (.exe)
+### 🪟 Windows (.exe)
+```bash
 npm run dist:win
+```
 
-# macOS (.dmg)
+### 🍎 macOS (.dmg)
+```bash
 npm run dist:mac
 ```
-
-Les fichiers générés se trouvent dans le dossier `dist/`.
 
 ---
 
