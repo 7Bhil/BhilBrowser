@@ -178,12 +178,8 @@ class Store {
     static saveSession(name, tabs) {
         try {
             const sessions = this.getSessions();
-            // Store essential tab data
-            sessions[name] = tabs.map(t => ({
-                url: t.webview ? t.webview.getURL() : t.url,
-                title: t.tabEl ? t.tabEl.querySelector('span')?.textContent || 'Home' : t.title,
-                isPinned: t.isPinned
-            }));
+            // Store the tabs data directly (now it's already extracted by the renderer)
+            sessions[name] = tabs;
             fs.writeFileSync(sessionsFile, JSON.stringify(sessions, null, 2));
         } catch (e) {
             console.error('Failed to save session:', e);

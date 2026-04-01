@@ -1082,7 +1082,15 @@ class TabManager {
 
     async confirmSaveSession() {
         const name = sessionNameInput.value.trim() || `Session ${Date.now()}`;
-        await electronAPI.store.saveSession(name, this.tabs);
+        
+        // Extract plain data instead of sending full tab objects (which contain non-serializable DOM elements)
+        const tabsData = this.tabs.map(t => ({
+            url: t.webview ? t.webview.getURL() : 'dashboard.html',
+            title: t.tabEl ? t.tabEl.querySelector('span')?.textContent || 'Home' : 'Home',
+            isPinned: t.isPinned
+        }));
+
+        await electronAPI.store.saveSession(name, tabsData);
         this.isClosingForcefully = true;
         electronAPI.getCurrentWindow().close();
     }

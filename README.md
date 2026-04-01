@@ -89,6 +89,29 @@ BhilBrowser/
 
 ---
 
-## 📄 Licence
+## �️ Dépannage (Troubleshooting)
+
+### "sh: electron: command not found"
+Si vous rencontrez cette erreur après avoir exécuté `npm install`, essayez les étapes suivantes :
+1. **Supprimer `node_modules`** et réinstaller :
+   ```bash
+   rm -Rf node_modules package-lock.json
+   npm install
+   ```
+2. **Utiliser `npx`** pour forcer l'usage du binaire local :
+   ```bash
+   npx electron .
+   ```
+
+### Dépendances Linux manquantes
+Si l'application ne s'ouvre pas sur Linux, vous aurez peut-être besoin d'installer ces bibliothèques :
+```bash
+sudo apt update
+sudo apt install libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libmesa-glx libgbm1 libasound2
+```
+
+---
+
+## �📄 Licence
 
 MIT © [7Bhil](https://github.com/7Bhil)
